@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.worktrees/
+*.log
+.DS_Store
+.dsh-sync-snapshot.json
