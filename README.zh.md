@@ -246,3 +246,10 @@ dsh-remote-workspace:
 ## 📄 开源许可证
 
 MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)
+
+### 13. 归档流同步与综合诊断 (v0.3.1)
+- **`🚀 快速 Tarball 流式同步`**：利用实时 `tar -czf` 数据流传输整个目录，彻底消除小文件频繁往返的延迟。
+- **`🩺 远程系统诊断 (remote_diagnose)`**：一键检测端口占用 (`ports`)、OOM 终止记录 (`oom_killer`)、磁盘分布 (`disk`) 与服务崩溃日志。
+- **`📥 导入 ~/.ssh/config`**：快速解析本机已有主机、私钥及跳板机配置至加密 `.env` 保管库。
+- **`🗃️ 远程环境变量管理 (remote_env)`**：支持远程 `.env` 的安全预览与原子化变量修改，自动遮蔽敏感密码。
+- **`📡 异常告警监控`**：当磁盘低于 10%、内存不足 5% 或容器异常重启时，主动触发 Cordis 事件总线 (`remote-workspace/alert`) 告警。

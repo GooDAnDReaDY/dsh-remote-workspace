@@ -246,3 +246,10 @@ All endpoints are hosted under `/dsh-remote-workspace`:
 ## 📄 License
 
 MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)
+
+### 13. Smart Tarball Sync & Diagnostics (v0.3.1)
+- **`🚀 Fast Tarball Stream`**: High-throughput directory sync via on-the-fly streaming `tar -czf` bypassing per-file roundtrips.
+- **`🩺 Remote Diagnostics (remote_diagnose)`**: Instant one-shot checks for occupied ports (`ports`), OOM killer events (`oom_killer`), disk consumption (`disk`), and service crash-logs (`service_logs`).
+- **`📥 Import from ~/.ssh/config`**: One-click import of hosts, keys, and ProxyJump configurations directly into the encrypted `.env` vault.
+- **`🗃️ Remote Environment Manager (remote_env)`**: Inspect and atomically modify remote `.env` key-values with password masking and structural preservation.
+- **`📡 Background Anomaly Alerts`**: Proactive monitoring of disk (<10% free), memory (<5%), and restarting Docker containers via Cordis event bus (`remote-workspace/alert`).

@@ -1,23 +1,21 @@
-# task_plan.md — dsh-remote-workspace
+# task_plan.md — dsh-remote-workspace (v0.3.1)
 
 ## Цель
-Создать высоконадежный корпоративный плагин удаленной разработки dsh-remote-workspace для DeepSeek Harness с современным UI, сервисной архитектурой Cordis, 3-way mirror sync, SSH port forwarding и компактным набором инструментов LLM.
+Реализовать 5 ключевых возможностей в рамках релиза v0.3.1:
+1. Smart Tarball Sync (пакетное ускорение передачи каталогов).
+2. remote_diagnose (комплексный агентский инструмент диагностики сервера).
+3. Import from ~/.ssh/config (парсинг хостов в .env vault).
+4. remote_env & Remote Environment Manager (безопасный редактор .env).
+5. AlertService (фоновый мониторинг аномалий и события Cordis).
 
-## Фазы реализации
-- [x] **Фаза 1**: Анализ dsh-remote, формирование архитектуры, инициализация репозитория Gitea и worktree.
-- [x] **Фаза 2**: Конфигурация сборки и репозитория (package.json, .gitignore, cordis.patch.yml).
-- [x] **Фаза 3**: Ядро backend сервисов (SshService, RemoteFsService, MirrorSyncService, TunnelService).
-- [x] **Фаза 4**: Инструменты модели (
-emote_exec, 
-emote_fs, 
-emote_sync, 
-emote_tunnel) и API маршруты.
-- [x] **Фаза 5**: Клиентская часть (i18n RU/EN/ZH, UI слоты).
-- [x] **Фаза 6**: Комплексное тестирование базовых модулей (12/12 pass).
-- [x] **Фаза 7**: Дополнительные ручные сценарии и документация (Docs standard EN/RU/ZH).
-- [/] **Фаза 8**: Стабильность, аудит багов, расширение тестов и дизайн в едином стиле dsh-clinebot:
-  - [ ] 8.1. Исправление стабильности: безопасный доступ к Cordis сервисам (ctx.get), сброс соединений при смене реквизитов профиля, нормализация полей в 	estConnection (latencyMs / remoteOs).
-  - [ ] 8.2. Безопасность и отказоустойчивость: фильтрация isTrustedSettingsRequest на API маршрутах, обработка ошибок стримов в TunnelService, автосоздание папок в MirrorSyncService.
-  - [ ] 8.3. Редизайн UI в едином стиле dsh-clinebot: модульные карточки, статусные бейджи в шапке, добавление поля localMirrorPath, секция управления туннелями в интерфейсе.
-  - [ ] 8.4. Расширение набора тестов (тесты API routes, tools, store/apply, client registration).
-  - [ ] 8.5. Тестирование на изолированном MiniPC сервере (dsh-test-plugin).
+## Статус фаз
+- [ ] **Фаза 1**: Backend-сервисы (lib/tar-sync-service.js, lib/diagnose-service.js, lib/ssh-config-parser.js, lib/env-service.js, lib/alert-service.js)
+- [ ] **Фаза 2**: Интеграция в инструменты модели (remote_diagnose, remote_env, smart sync) и API маршруты
+- [ ] **Фаза 3**: Обновление клиентского интерфейса (кнопка импорта SSH, вкладка/модалка .env, индикатор алертов)
+- [ ] **Фаза 4**: Модульные и интеграционные тесты (test/phase4.test.mjs)
+- [ ] **Фаза 5**: Документация (README EN/RU/ZH, DESIGN.md) и проверка лимитов размера (<250 KiB)
+- [ ] **Фаза 6**: Тестовый гейт на MiniPC (dsh-test-plugin) и боевая верификация на MiniAI
+
+## Next Step
+Создание backend-сервисов в lib/.
+EOF
