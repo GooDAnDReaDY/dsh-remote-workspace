@@ -7,7 +7,7 @@ emote_fs,
 emote_sync, 
 emote_tunnel).
 - **Аудитория**: Разработчики и инженеры, использующие DSH для работы с проектами на VPS, удаленных серверах, облачных инстансах и MiniPC.
-- **Статус**: В активной доработке (Стабильность, Тесты, Редизайн в стиле dsh-clinebot).
+- **Статус**: Стабильный релиз v0.3.2 (One-Click Updater, Cross-Plugin API, Clean Tokens, Modular Routes).
 
 ## User Surfaces
 - **Web/UI**: Нативная карточка настроек профилей хостов (settings.plugin.item), удаленный SFTP браузер каталогов, чип статуса подключения в шапке сессии (conversation.session.header.utilities).
