@@ -6,3 +6,4 @@ dist/
 .DS_Store
 .dsh-sync-snapshot.json
  *.tgz 
+docs/plans/
