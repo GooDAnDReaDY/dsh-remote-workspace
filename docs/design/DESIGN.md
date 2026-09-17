@@ -7,7 +7,7 @@ emote_fs,
 emote_sync, 
 emote_tunnel).
 - **Аудитория**: Разработчики и инженеры, использующие DSH для работы с проектами на VPS, удаленных серверах, облачных инстансах и MiniPC.
-- **Статус**: Стабильный релиз v0.3.2 (One-Click Updater, Cross-Plugin API, Clean Tokens, Modular Routes).
+- **Статус**: Стабильный релиз v0.3.3 (One-Click Updater, Cross-Plugin API, Clean Tokens, Modular Routes).
 
 ## User Surfaces
 - **Web/UI**: Нативная карточка настроек профилей хостов (settings.plugin.item), удаленный SFTP браузер каталогов, чип статуса подключения в шапке сессии (conversation.session.header.utilities).
@@ -69,3 +69,17 @@ emote_tunnel: создание/остановка/листинг туннеле�
 - Защита всех мутирующих эндпоинтов проверкой isTrustedSettingsRequest(req) (защита от cross-site атак).
 - Безопасное чтение Cordis сервисов через .get() с fallback.
 - Изоляция жизненного цикла стримов в TunnelService (прослушивание сокетных и потоковых ошибок).
+
+### v0.3.3 Client Architecture Modularization (Refs: #14)
+- Client-side code decomposed into modular ES components under `src/client/`:
+  - `src/client/styles.js` — CSS styling with DSH theme variables
+  - `src/client/locales.js` — English and Chinese translation dictionaries
+  - `src/client/env-editor.js` — Remote .env manager tab component
+  - `src/client/docker.js` — Container inspector tab component
+  - `src/client/terminal.js` — Web terminal tab component
+  - `src/client/file-browser.js` — Remote file explorer tab component
+  - `src/client/settings-view.js` — Profiles, tunnels, and sync settings component
+  - `src/client/updater-section.js` — One-click updater section component
+  - `src/client/plugin-card.js` — Plugin card and status chip components
+  - `src/client/entry.js` — Cordis client plugin apply and slot registration
+- Added native builder `scripts/build-client.mjs` hooked into `prepack` and `npm test`.
