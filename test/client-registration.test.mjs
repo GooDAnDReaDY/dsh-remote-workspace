@@ -81,3 +81,65 @@ test('Client: registers with __ModuleLoader__ and defines proper slots', () => {
   assert.ok(!injectedSlotNames.includes('settings.section'), 'settings.section must not be registered');
   assert.ok(!registeredSlots.some((s) => s.options.name === 'settings.section'), 'Forbidden settings.section must not be present');
 });
+
+test('Client: apply registers locale via ctx.effect and supports repeated apply', () => {
+  let loadedModule = null;
+  const mockWindow = {
+    __ModuleLoader__: {
+      load(entry) {
+        loadedModule = entry;
+      }
+    }
+  };
+
+  const clientCode = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8');
+  const context = vm.createContext({
+    window: mockWindow,
+    document: {
+      getElementById: () => null,
+      createElement: () => ({ setAttribute() {}, dataset: {} }),
+      head: { appendChild() {} }
+    },
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) }),
+    confirm: () => true
+  });
+  vm.runInContext(clientCode, context);
+
+  const mockRequire = (mod) => ({
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (init) => [init, () => {}],
+    useEffect: (fn) => fn(),
+    Fragment: 'Fragment'
+  });
+
+  const exportsObj = loadedModule.factory(mockRequire);
+  let effectCalled = false;
+  let unregisterCalled = false;
+  let registerCount = 0;
+
+  const mockCtx = {
+    locale: {
+      register(ns, dicts) {
+        registerCount++;
+        return () => { unregisterCalled = true; };
+      }
+    },
+    effect(fn, label) {
+      effectCalled = true;
+      assert.equal(label, 'dsh-remote-workspace: dictionaries');
+      return fn();
+    },
+    slots: {
+      inject(slotName, cb) { cb(); },
+      register() {}
+    }
+  };
+
+  exportsObj.apply(mockCtx);
+  assert.ok(effectCalled, 'ctx.effect should be called');
+  assert.equal(registerCount, 1);
+
+  // Repeated apply simulation (HMR)
+  exportsObj.apply(mockCtx);
+  assert.equal(registerCount, 2);
+});
