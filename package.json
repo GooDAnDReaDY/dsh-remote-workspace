@@ -16,7 +16,7 @@
     "README.md",
     "README.ru.md",
     "README.zh.md",
-    "docs/",
+    "docs/design/DESIGN.md",
     "LICENSE"
   ],
   "scripts": {
