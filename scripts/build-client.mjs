@@ -25,6 +25,9 @@ window.__ModuleLoader__.load({
     const React = require('react')
 
     const NS = 'dsh-remote-workspace'
+    // Plugins page row seat (DSH 0.1.6-alpha.2): key = '<package name>#<row id>'.
+    const ROW_ID = 'dsh-remote-workspace'
+    const ROW_CONFIG_KEY = '@goodandready/dsh-remote-workspace#' + ROW_ID
 
 `
 

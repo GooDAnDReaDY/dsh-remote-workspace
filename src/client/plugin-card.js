@@ -1,14 +1,21 @@
     function PluginCard(props) {
-      const [open, setOpen] = React.useState(false)
+      const page = !!(props && props.view === 'page')
+      const [open, setOpen] = React.useState(!!page)
       const t = props.t || (props.locale === 'zh' ? makeT(zh, en) : makeT(en, zh))
 
       React.useEffect(() => {
         ensureCss()
       }, [])
 
+      // Row seat (plugins.row.config): the host page draws title/icon/crumb and the
+      // padding, so the summary is a one-liner and the page drops our card chrome.
+      if (props && props.view === 'summary') {
+        return React.createElement('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-secondary)' } }, t('subtitle'))
+      }
+
       return React.createElement(
-        'li',
-        { className: 'drw-card', style: { listStyle: 'none', marginBottom: '12px' } },
+        page ? 'div' : 'li',
+        { className: page ? 'drw-page' : 'drw-card', style: page ? undefined : { listStyle: 'none', marginBottom: '12px' } },
         React.createElement(
           'button',
           {
@@ -17,13 +24,13 @@
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              display: 'flex',
+              display: page ? 'none' : 'flex',
               alignItems: 'center',
               width: '100%',
               padding: 0,
               textAlign: 'left',
             },
-            'aria-expanded': open,
+            'aria-expanded': page ? true : open,
             onClick: () => setOpen((v) => !v),
           },
           React.createElement('span', { style: { fontSize: '20px', marginRight: '12px' } }, '🌐'),
@@ -40,7 +47,7 @@
             React.createElement(FallbackChevron)
           )
         ),
-        open
+        (page || open)
           ? React.createElement(
               'div',
               { style: { marginTop: '16px', borderTop: '1px solid var(--dsw-alias-border-l2)', paddingTop: '16px' } },

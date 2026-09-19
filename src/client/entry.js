@@ -8,6 +8,19 @@
       }
 
       if (ctx.slots && typeof ctx.slots.inject === 'function') {
+        // Row seat first (the seat the current core renders), legacy seat after it.
+        ctx.slots.inject('plugins.row.config', () =>
+          ctx.slots.register(
+            {
+              name: 'plugins.row.config',
+              key: ROW_CONFIG_KEY,
+              locale: NS,
+              inject: () => ({ ctx })
+            },
+            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx }))
+          )
+        )
+
         ctx.slots.inject('settings.plugin.item', () =>
           ctx.slots.register(
             {
