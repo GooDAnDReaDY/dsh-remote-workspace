@@ -2,6 +2,16 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.5
+
+### Fixed
+- **Settings reachable again on the plugin's own page**: the current DSH core
+  (0.1.6-alpha.2) renders a plugin's configuration page only for entries registered
+  in the plugin-list seat `plugins.item`. The view-aware card is now registered there
+  (`id: 'dsh-remote-workspace'`, order 60, static label); the row seat and the legacy
+  `settings.plugin.item` card stay as fallbacks. Sources edited in `src/client/entry.js`,
+  `lib/client.js` regenerated.
+
 ## 0.3.4
 
 ### Fixed
