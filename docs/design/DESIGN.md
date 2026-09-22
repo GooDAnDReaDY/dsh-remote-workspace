@@ -83,3 +83,9 @@ emote_tunnel: создание/остановка/листинг туннеле�
   - `src/client/plugin-card.js` — Plugin card and status chip components
   - `src/client/entry.js` — Cordis client plugin apply and slot registration
 - Added native builder `scripts/build-client.mjs` hooked into `prepack` and `npm test`.
+
+### v0.3.6 Model Tools JSON Schema Standardization (Refs: #33)
+- Все 9 инструментов (`remote_exec`, `remote_fs`, `remote_sync`, `remote_tunnel`, `remote_docker`, `remote_service`, `remote_transfer`, `remote_diagnose`, `remote_env`) переведены на компиляцию через `defineTool()` из `@deepseek-ai/dsh-tools`.
+- Параметры инструментов компилируются в строгий JSON Schema с корнем `{ type: 'object', properties: ..., required: [...] }`.
+- Предотвращены ошибки валидации схем в OpenAI-совместимых провайдерах (`Invalid schema: schema must be a JSON Schema of 'type: "object"', got 'type: null'`).
+- Схема вывода стандартизирована с явным `{ type: 'object', additionalProperties: true }`.
