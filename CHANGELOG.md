@@ -2,6 +2,11 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.6
+
+### Fixed
+- **Object-root JSON Schema for all remote tools**: Wrapped all 9 tool registrations (`remote_exec`, `remote_fs`, `remote_sync`, `remote_tunnel`, `remote_docker`, `remote_service`, `remote_transfer`, `remote_diagnose`, `remote_env`) with canonical `defineTool()` from `@deepseek-ai/dsh-tools`. Parameters are now compiled into standard JSON Schema objects with root `type: "object"`, preventing rejection by OpenAI-compatible LLM providers (`schema must be a JSON Schema of 'type: "object"', got 'type: null'`). Output schema standardized with `additionalProperties: true`. (Refs: #33)
+
 ## 0.3.5
 
 ### Fixed
