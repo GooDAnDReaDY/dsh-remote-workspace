@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerRemoteTools } from '../lib/tools.js';
 
-function setupTools(activeProfile) {
+function setupTools(activeProfile, options = {}) {
   const tools = new Map();
   const mockCtx = {
     tools: {
@@ -13,7 +13,8 @@ function setupTools(activeProfile) {
   };
 
   const mockSsh = {
-    exec: async (_p, cmd, dir) => ({ code: 0, stdout: `Executed: ${cmd} in ${dir}`, stderr: '' })
+    exec: async (_p, cmd, dir) => ({ code: 0, stdout: `Executed: ${cmd} in ${dir}`, stderr: '' }),
+    transferFileBetweenHosts: async () => ({ success: true, bytesTransferred: 42 })
   };
 
   const mockFs = {
@@ -36,7 +37,40 @@ function setupTools(activeProfile) {
     stopTunnel: () => true
   };
 
-  registerRemoteTools(mockCtx, mockSsh, mockFs, mockSync, mockTunnel, () => activeProfile);
+  const mockDocker = options.docker !== false ? {
+    listContainers: async () => [{ Id: 'c1', Names: ['/web'] }],
+    containerLogs: async () => 'container logs',
+    containerAction: async () => ({ success: true }),
+    composeAction: async () => ({ success: true })
+  } : null;
+
+  const mockDiagnose = options.diagnose !== false ? {
+    diagnose: async (_p, category, target) => ({ category, target, ok: true, output: 'diagnostics passed' })
+  } : null;
+
+  const mockEnv = options.env !== false ? {
+    readEnv: async () => ({ raw: 'PORT=3000', variables: { PORT: '3000' } }),
+    setEnvVar: async () => ({ success: true, key: 'PORT', value: '3000' })
+  } : null;
+
+  const mockTarSync = options.tarSync !== false ? {
+    pullTar: async () => ({ success: true, mode: 'tarball' }),
+    pushTar: async () => ({ success: true, mode: 'tarball' })
+  } : null;
+
+  registerRemoteTools(
+    mockCtx,
+    mockSsh,
+    mockFs,
+    mockSync,
+    mockTunnel,
+    () => activeProfile,
+    (id) => (activeProfile && activeProfile.id === id ? activeProfile : null),
+    mockDocker,
+    mockDiagnose,
+    mockEnv,
+    mockTarSync
+  );
   return tools;
 }
 
@@ -116,4 +150,81 @@ test('Tools: remote_tunnel handles list, start, stop', async () => {
 
   const stopRes = await tool.execute({ action: 'stop', tunnelId: 'tun1' });
   assert.equal(stopRes.success, true);
+});
+
+// Regression tests for Issue #33: JSON Schema root must be type "object"
+test('Tools [Issue #33]: all 9 tools compile valid object-root JSON Schema', () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+
+  const expectedTools = [
+    'remote_exec',
+    'remote_fs',
+    'remote_sync',
+    'remote_tunnel',
+    'remote_docker',
+    'remote_service',
+    'remote_transfer',
+    'remote_diagnose',
+    'remote_env'
+  ];
+
+  assert.equal(tools.size, 9, 'All 9 remote tools must be registered');
+
+  for (const name of expectedTools) {
+    const tool = tools.get(name);
+    assert.ok(tool, `Tool ${name} must be registered`);
+    assert.equal(typeof tool.name, 'string');
+    assert.equal(typeof tool.description, 'string');
+
+    // JSON Schema root requirements for LLM / OpenAI API compatibility:
+    assert.ok(tool.parameters, `Tool ${name} must have parameters`);
+    assert.equal(tool.parameters.type, 'object', `Tool ${name} root parameters.type must be "object"`);
+    assert.equal(typeof tool.parameters.properties, 'object', `Tool ${name} parameters.properties must be an object`);
+    assert.ok(Object.keys(tool.parameters.properties).length > 0, `Tool ${name} must have at least one parameter property`);
+    assert.ok(Array.isArray(tool.parameters.required), `Tool ${name} parameters.required must be an array`);
+
+    // Output schema validation
+    assert.ok(tool.output, `Tool ${name} must have output definition`);
+    assert.ok(tool.output.schema, `Tool ${name} must have output.schema`);
+    assert.equal(tool.output.schema.type, 'object');
+  }
+});
+
+test('Tools [Issue #33]: remote_diagnose schema and execution validation', async () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+  const tool = tools.get('remote_diagnose');
+
+  assert.ok(tool);
+  assert.equal(tool.parameters.type, 'object');
+  assert.deepEqual(tool.parameters.required, ['category']);
+  assert.equal(tool.parameters.properties.category.type, 'string');
+  assert.equal(tool.parameters.properties.target.type, 'string');
+
+  // Valid invocation
+  const res = await tool.execute({ category: 'ports', target: '8080' });
+  assert.equal(res.ok, true);
+  assert.equal(res.category, 'ports');
+  assert.equal(res.target, '8080');
+
+  // Missing required parameter throws ToolArgsError
+  await assert.rejects(async () => {
+    await tool.execute({});
+  }, /missing required property "category"/);
+});
+
+test('Tools [Issue #33]: remote_transfer schema and execution validation', async () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+  const tool = tools.get('remote_transfer');
+
+  assert.ok(tool);
+  assert.equal(tool.parameters.type, 'object');
+  assert.deepEqual(tool.parameters.required.sort(), ['destPath', 'destProfileId', 'sourcePath'].sort());
+
+  // Missing required properties throws ToolArgsError
+  await assert.rejects(async () => {
+    await tool.execute({ sourcePath: '/a' });
+  }, /missing required property/);
 });
