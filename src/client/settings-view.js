@@ -11,6 +11,8 @@
       const [busy, setBusy] = React.useState(null)
       const [testResult, setTestResult] = React.useState(null)
       const [actionError, setActionError] = React.useState('')
+      const [authPrompts, setAuthPrompts] = React.useState([])
+      const [authAnswers, setAuthAnswers] = React.useState({})
       const [syncMsg, setSyncMsg] = React.useState(null)
       const [tunnelMsg, setTunnelMsg] = React.useState(null)
       const [showPassword, setShowPassword] = React.useState(false)
@@ -49,6 +51,7 @@
             setActiveId(data.activeId || null)
             setTunnels(data.tunnels || [])
             setAutoSync(Boolean(data.autoSync))
+            setAuthPrompts(data.authPrompts || [])
             if (data.activeId) {
               fetch(`/dsh-remote-workspace/health?profileId=${data.activeId}`).then(r => r.json()).then(h => { if (h.ok) setHealthData(h.health) }).catch(() => {})
             }
@@ -61,7 +64,24 @@
       React.useEffect(() => {
         ensureCss()
         loadState()
+        const timer = setInterval(loadState, 2000)
+        return () => clearInterval(timer)
       }, [])
+
+      const submitAuth = async (prompt) => {
+        const answers = (prompt.prompts || []).map((_, index) => authAnswers[prompt.profileId + ':' + index] || '')
+        try {
+          const res = await fetch('/dsh-remote-workspace/auth/keyboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: prompt.profileId, answers })
+          })
+          const data = await reportAction(res)
+          if (data) await loadState()
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
 
       const handleSave = async (profile) => {
         setBusy('saving')
@@ -257,6 +277,35 @@
             : null
         ),
 
+
+
+        authPrompts.length
+          ? React.createElement(
+              'div',
+              { className: 'drw-card', role: 'dialog', 'aria-label': t('authPromptTitle') },
+              React.createElement('div', { className: 'drw-page-title' }, t('authPromptTitle')),
+              authPrompts.map((prompt) => React.createElement(
+                'div',
+                { key: prompt.profileId, className: 'drw-field' },
+                prompt.instructions
+                  ? React.createElement('span', { className: 'drw-hint' }, prompt.instructions)
+                  : null,
+                (prompt.prompts || []).map((field, index) => React.createElement('input', {
+                  key: index,
+                  className: 'drw-input',
+                  type: field.echo ? 'text' : 'password',
+                  placeholder: field.prompt || t('authPromptCode'),
+                  value: authAnswers[prompt.profileId + ':' + index] || '',
+                  onChange: (e) => setAuthAnswers({ ...authAnswers, [prompt.profileId + ':' + index]: e.target.value })
+                })),
+                React.createElement('button', {
+                  type: 'button',
+                  className: 'drw-btn drw-btn-primary',
+                  onClick: () => submitAuth(prompt)
+                }, t('authPromptSubmit'))
+              ))
+            )
+          : null,
 
         React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
 
