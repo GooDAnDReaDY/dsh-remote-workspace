@@ -129,6 +129,23 @@
                 React.createElement(
                   'div',
                   { className: 'drw-field' },
+                  React.createElement('span', { className: 'drw-label' }, t('fJumpHosts')),
+                  React.createElement('input', {
+                    className: 'drw-input',
+                    placeholder: 'bastion-a, bastion-b',
+                    value: editing.jumpHostId || ((editing.jumpHosts || []).join(', ')),
+                    onChange: (e) => {
+                      const raw = e.target.value;
+                      const jumpHosts = raw.split(',').map((item) => item.trim()).filter(Boolean);
+                      setEditing({ ...editing, jumpHostId: raw, jumpHosts });
+                    }
+                  }),
+                  React.createElement('span', { className: 'drw-hint' }, t('fJumpHostsHint'))
+                ),
+
+                React.createElement(
+                  'div',
+                  { className: 'drw-field' },
                   React.createElement('span', { className: 'drw-label' }, t('fProxyCommand')),
                   React.createElement('input', {
                     className: 'drw-input',
