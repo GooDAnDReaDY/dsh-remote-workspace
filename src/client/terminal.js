@@ -1,3 +1,10 @@
+    function applyTerminalFont(font) {
+      if (typeof document === 'undefined') return
+      const value = String(font || '').trim()
+      if (value) document.documentElement.style.setProperty('--drw-terminal-font', value)
+      else document.documentElement.style.removeProperty('--drw-terminal-font')
+    }
+
     function TerminalTab(props) {
       const { activeProfile, t } = props
       const [connected, setConnected] = React.useState(false)
@@ -183,7 +190,7 @@
             ? React.createElement(
                 'form',
                 { className: 'drw-term-footer', onSubmit: sendCommand },
-                React.createElement('span', { style: { color: 'var(--dsw-alias-link-primary)', padding: '4px 6px', fontFamily: 'monospace' } }, '$'),
+                React.createElement('span', { style: { color: 'var(--dsw-alias-link-primary)', padding: '4px 6px', fontFamily: 'inherit' } }, '$'),
                 React.createElement('input', {
                   className: 'drw-term-input',
                   type: 'text',

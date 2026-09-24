@@ -17,6 +17,7 @@
       const [syncMsg, setSyncMsg] = React.useState(null)
       const [tunnelMsg, setTunnelMsg] = React.useState(null)
       const [showPassword, setShowPassword] = React.useState(false)
+      const [terminalFont, setTerminalFont] = React.useState('')
 
       // Tunnel creation inputs
       const [newTunnelLocal, setNewTunnelLocal] = React.useState('3000')
@@ -53,6 +54,8 @@
             setTunnels(data.tunnels || [])
             setAutoSync(Boolean(data.autoSync))
             setAuthPrompts(data.authPrompts || [])
+            setTerminalFont(data.terminalFontFamily || '')
+            applyTerminalFont(data.terminalFontFamily || '')
             if (data.activeId) {
               fetch(`/dsh-remote-workspace/health?profileId=${data.activeId}`).then(r => r.json()).then(h => { if (h.ok) setHealthData(h.health) }).catch(() => {})
             }
@@ -68,6 +71,24 @@
         const timer = setInterval(loadState, 2000)
         return () => clearInterval(timer)
       }, [])
+
+
+      const saveTerminalFont = async () => {
+        try {
+          const res = await fetch('/dsh-remote-workspace/terminal/font', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fontFamily: terminalFont })
+          })
+          const data = await reportAction(res)
+          if (data && data.ok) {
+            setTerminalFont(data.terminalFontFamily || '')
+            applyTerminalFont(data.terminalFontFamily || '')
+          }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
 
       const submitAuth = async (prompt) => {
         const answers = (prompt.prompts || []).map((_, index) => authAnswers[prompt.profileId + ':' + index] || '')
@@ -346,6 +367,22 @@
                 (importReport.skipped || []).map((item, index) => React.createElement('div', { key: index }, (item.name || '') + ': ' + skipReason(item.reason)))
               )
             : null
+        ),
+
+
+        React.createElement('div', { className: 'drw-card' },
+          React.createElement('label', { className: 'drw-label' }, t('fTerminalFont')),
+          React.createElement('div', { style: { display: 'flex', gap: '8px' } },
+            React.createElement('input', {
+              className: 'drw-input',
+              type: 'text',
+              value: terminalFont,
+              placeholder: 'ui-monospace, Consolas, monospace',
+              onChange: (e) => setTerminalFont(e.target.value)
+            }),
+            React.createElement('button', { type: 'button', className: 'drw-btn', onClick: saveTerminalFont }, t('btnSave'))
+          ),
+          React.createElement('div', { className: 'drw-hint' }, t('fTerminalFontHint'))
         ),
 
         React.createElement('div', { style: { display: 'flex', gap: '8px' } },
