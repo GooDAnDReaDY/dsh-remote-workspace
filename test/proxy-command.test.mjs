@@ -16,6 +16,6 @@ test('openProxyCommand runs a process and stops it when the socket closes', asyn
   const opened = openProxyCommand('sleep 30');
   assert.equal(opened.child.exitCode, null);
   opened.stop();
-  const code = await new Promise((resolve) => opened.child.once('exit', resolve));
-  assert.notEqual(code, null);
+  const signal = await new Promise((resolve) => opened.child.once('exit', (_code, sig) => resolve(sig)));
+  assert.ok(signal);
 });
