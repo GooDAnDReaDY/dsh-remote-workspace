@@ -187,3 +187,42 @@ test('API Routes: POST /dsh-remote-workspace/tunnels/start and stop manage tunne
   assert.equal(stopRes.getStatusCode(), 200);
   assert.equal(stopRes.getBody().ok, true);
 });
+
+test('API Routes: POST /dsh-remote-workspace/browse calls listDir and returns entries and items', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/browse');
+  assert.ok(handler, 'Route /browse should be registered');
+
+  // Case 1: with profileId
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/browse', { profileId: 'p1', remotePath: '/remote/src' });
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 200);
+  const data1 = res1.getBody();
+  assert.equal(data1.ok, true);
+  assert.ok(Array.isArray(data1.entries));
+  assert.equal(data1.entries.length, 1);
+  assert.equal(data1.entries[0].filename, 'src');
+  assert.equal(data1.items.length, 1);
+  assert.equal(data1.currentPath, '/remote/src');
+
+  // Case 2: with inline profile object from settings editor
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/browse', {
+    profile: { id: 'custom-temp', host: '192.168.1.50' },
+    remotePath: '/var/www'
+  });
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 200);
+  const data2 = res2.getBody();
+  assert.equal(data2.ok, true);
+  assert.ok(Array.isArray(data2.entries));
+
+  // Case 3: profile not found
+  const req3 = createMockReq('POST', '/dsh-remote-workspace/browse', { profileId: 'nonexistent' });
+  const res3 = createMockRes();
+  await handler(req3, res3);
+  assert.equal(res3.getStatusCode(), 404);
+});
