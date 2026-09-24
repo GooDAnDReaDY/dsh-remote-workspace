@@ -153,7 +153,7 @@ test('Tools: remote_tunnel handles list, start, stop', async () => {
 });
 
 // Regression tests for Issue #33: JSON Schema root must be type "object"
-test('Tools [Issue #33]: all 9 tools compile valid object-root JSON Schema', () => {
+test('Tools [Issue #33]: remote tools compile valid object-root JSON Schema', () => {
   const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
   const tools = setupTools(profile);
 
@@ -166,10 +166,11 @@ test('Tools [Issue #33]: all 9 tools compile valid object-root JSON Schema', () 
     'remote_service',
     'remote_transfer',
     'remote_diagnose',
-    'remote_env'
+    'remote_env',
+    'remote_hosts'
   ];
 
-  assert.equal(tools.size, 9, 'All 9 remote tools must be registered');
+  assert.equal(tools.size, 10, 'All 10 remote tools must be registered');
 
   for (const name of expectedTools) {
     const tool = tools.get(name);
