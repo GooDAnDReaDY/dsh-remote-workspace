@@ -73,7 +73,7 @@
           React.createElement(
             'div',
             null,
-            React.createElement('span', { style: { fontWeight: 500 } }, 'v' + (updateStatus?.currentVersion || '0.3.1')),
+            React.createElement('span', { style: { fontWeight: 500 } }, (updateStatus?.currentVersion ? 'v' + updateStatus.currentVersion : t('versionUnknown'))),
             updateStatus?.latestVersion && updateStatus.latestVersion !== updateStatus.currentVersion
               ? React.createElement('span', { style: { marginLeft: '8px', color: 'var(--dsw-alias-state-warning-text)' } }, '→ v' + updateStatus.latestVersion)
               : null,
