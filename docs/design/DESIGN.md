@@ -82,7 +82,10 @@ emote_tunnel: создание/остановка/листинг туннеле�
   - `src/client/docker.js` — Container inspector tab component
   - `src/client/terminal.js` — Web terminal tab component
   - `src/client/file-browser.js` — Remote file explorer tab component
-  - `src/client/settings-view.js` — Profiles, tunnels, and sync settings component
+  - `src/client/profiles-panel.js` — SSH profile form and host table
+  - `src/client/sync-panel.js` — mirror sync actions
+  - `src/client/tunnels-panel.js` — port-forwarding form and tunnel table
+  - `src/client/settings-view.js` — profile state and the diagnostics card that composes the panels
   - `src/client/updater-section.js` — One-click updater section component
   - `src/client/plugin-card.js` — Plugin card and status chip components
   - `src/client/entry.js` — Cordis client plugin apply and slot registration
