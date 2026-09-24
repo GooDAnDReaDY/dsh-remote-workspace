@@ -3,8 +3,32 @@
       const [open, setOpen] = React.useState(!!page)
       const t = props.t || (props.locale === 'zh' ? makeT(zh, en) : makeT(en, zh))
 
+      const [conn, setConn] = React.useState('loading')
+
       React.useEffect(() => {
         ensureCss()
+      }, [])
+
+      React.useEffect(() => {
+        let cancelled = false
+        fetch('/dsh-remote-workspace/state')
+          .then((res) => {
+            if (!res.ok) throw new Error('HTTP ' + res.status)
+            return res.json()
+          })
+          .then((data) => {
+            if (cancelled) return
+            if (!data || data.ok === false) {
+              setConn('error')
+              return
+            }
+            const active = (data.profiles || []).find((item) => item.id === data.activeId)
+            setConn(active ? 'ready' : 'empty')
+          })
+          .catch(() => {
+            if (!cancelled) setConn('error')
+          })
+        return () => { cancelled = true }
       }, [])
 
       // Row seat (plugins.row.config): the host page draws title/icon/crumb and the
@@ -40,7 +64,18 @@
             React.createElement('div', { style: { fontWeight: 600, fontSize: '15px', color: 'var(--dsw-alias-label-primary)' } }, t('title')),
             React.createElement('div', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-secondary)' } }, t('subtitle'))
           ),
-          React.createElement('span', { className: 'drw-badge drw-badge-ok', style: { marginRight: '14px' } }, t('status')),
+          React.createElement('span', {
+            className: 'drw-badge ' + (
+              conn === 'ready' ? 'drw-badge-ok'
+                : conn === 'error' ? 'drw-badge-err'
+                  : conn === 'empty' ? 'drw-badge-warn' : ''
+            ),
+            style: { marginRight: '14px' }
+          }, t(
+            conn === 'ready' ? 'statusReady'
+              : conn === 'error' ? 'statusError'
+                : conn === 'empty' ? 'statusEmpty' : 'statusLoading'
+          )),
           React.createElement(
             'span',
             { style: { transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .16s' } },
