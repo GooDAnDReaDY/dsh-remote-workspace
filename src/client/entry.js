@@ -9,16 +9,28 @@
 
       if (ctx.slots && typeof ctx.slots.inject === 'function') {
         // Plugin-list seat (plugins.item) first: the seat the current core
-        // (0.1.6-alpha.2) renders as the plugin's own page with its configuration. The
-        // label is a static string on purpose — it is resolved while the page renders,
-        // and a locale lookup there would take the whole client batch down with it.
+        // (0.1.6-alpha.2) renders as the plugin's own page with its configuration.
+        // The label getter runs during page render. A locale-service lookup there
+        // crashes the client batch, so the title is read from the dictionaries
+        // already loaded in this bundle. English is the result when the active
+        // language cannot be read.
         ctx.slots.inject('plugins.item', () =>
           ctx.slots.register(
             {
               name: 'plugins.item',
               id: ROW_ID,
               order: 60,
-              label: () => 'Remote Workspace',
+              label: () => {
+                try {
+                  const lang = ctx.locale && typeof ctx.locale.getLocale === 'function'
+                    ? ctx.locale.getLocale()
+                    : ''
+                  if (typeof lang === 'string' && (lang === 'zh' || lang.indexOf('zh') === 0)) return zh.title
+                } catch (err) {
+                  return en.title
+                }
+                return en.title
+              },
               locale: NS,
               inject: () => ({ ctx })
             },

@@ -59,6 +59,9 @@ emote_tunnel: создание/остановка/листинг туннеле�
    - Результат пинга: отображение Latency: X ms | OS: Y или понятный текст ошибки.
 - Ошибки сохранения, удаления, выбора активного профиля, загрузки списка и обзора каталога показываются текстом в шапке (`role=alert`), а не молчаливым отсутствием изменений.
 - Бейдж шапки карточки отражает загрузку `/state`: checking, no active host, host ready или status unavailable. Постоянная подпись Ready не используется.
+- Шеврон шапки берёт `IconChevronDownOutline14`, если пакет примитивов его отдал. Свой SVG 14×14 остаётся только когда иконка недоступна. `aria-expanded` на кнопке шапки сохраняется.
+- Подпись пункта в списке плагинов берётся из словарей `en.title` / `zh.title`. Вызов сервиса локали из геттера `label` не используется: он роняет клиентский пакет во время отрисовки страницы.
+- Строка версии в блоке обновления показывает `currentVersion` из ответа статуса. Пока версия не пришла, показывается нейтральная подпись, а не зашитый номер релиза.
 3. **Секция 3: Диагностика активного подключения**:
    - Четырёхколоночная сетка метрик активного сервера (Хост, Удалённая папка, Метод авторизации, Статус ядра).
 4. **Секция 4: Синхронизация зеркала (Mirror Sync)**:
@@ -81,7 +84,10 @@ emote_tunnel: создание/остановка/листинг туннеле�
   - `src/client/docker.js` — Container inspector tab component
   - `src/client/terminal.js` — Web terminal tab component
   - `src/client/file-browser.js` — Remote file explorer tab component
-  - `src/client/settings-view.js` — Profiles, tunnels, and sync settings component
+  - `src/client/profiles-panel.js` — SSH profile form and host table
+  - `src/client/sync-panel.js` — mirror sync actions
+  - `src/client/tunnels-panel.js` — port-forwarding form and tunnel table
+  - `src/client/settings-view.js` — profile state and the diagnostics card that composes the panels
   - `src/client/updater-section.js` — One-click updater section component
   - `src/client/plugin-card.js` — Plugin card and status chip components
   - `src/client/entry.js` — Cordis client plugin apply and slot registration

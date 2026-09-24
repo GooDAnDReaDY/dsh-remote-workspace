@@ -79,7 +79,7 @@
           React.createElement(
             'span',
             { style: { transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .16s' } },
-            React.createElement(FallbackChevron)
+            React.createElement(ChevronIcon || FallbackChevron)
           )
         ),
         (page || open)
