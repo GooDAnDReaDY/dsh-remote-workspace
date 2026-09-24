@@ -149,3 +149,34 @@ test('MirrorSyncService: preserves binary data integrity without UTF-8 corruptio
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('MirrorSyncService: deduplicates parent mkdir calls when pushing multiple files in same dir', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-sync-mkdir-'));
+  const localDir = path.join(tmpDir, 'local');
+  const subDir = path.join(localDir, 'nested', 'pkg');
+  fs.mkdirSync(subDir, { recursive: true });
+
+  fs.writeFileSync(path.join(subDir, 'file1.txt'), 'content 1');
+  fs.writeFileSync(path.join(subDir, 'file2.txt'), 'content 2');
+  fs.writeFileSync(path.join(subDir, 'file3.txt'), 'content 3');
+
+  const mkdirCalls = [];
+  const mockRemoteFs = {
+    async mkdir(profile, remotePath) {
+      mkdirCalls.push(remotePath);
+    },
+    async writeFile() {}
+  };
+
+  const sync = new MirrorSyncService(mockRemoteFs, {});
+  const res = await sync.push({ id: 'p1' }, localDir, '/remote/app', true, false);
+
+  assert.equal(res.success, true);
+  assert.equal(res.pushed.length, 3);
+  // remotePath for all 3 files is /remote/app/nested/pkg; mkdir should be called only once
+  assert.equal(mkdirCalls.length, 1);
+  assert.equal(mkdirCalls[0], '/remote/app/nested/pkg');
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
