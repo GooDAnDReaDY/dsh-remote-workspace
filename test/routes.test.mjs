@@ -290,3 +290,61 @@ test('API Routes [Issue #25]: rejects cross-site requests even when originating 
 
   assert.equal(res3.getStatusCode(), 200);
 });
+
+test('API Routes [Issue #32]: rejects arbitrary Bearer token and cookie substring from untrusted address', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  // Case 1: Arbitrary Bearer token from remote IP without valid server token
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+    'authorization': 'Bearer arbitrary-untrusted-token',
+    'sec-fetch-site': undefined
+  });
+  req1.socket = { remoteAddress: '192.168.1.50' };
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 403);
+  assert.equal(res1.getBody().error, 'Forbidden');
+
+  // Case 2: Arbitrary cookie with token= substring from remote IP
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+    'cookie': 'other=1; token=arbitrary-cookie; session=xyz',
+    'sec-fetch-site': undefined
+  });
+  req2.socket = { remoteAddress: '192.168.1.50' };
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 403);
+  assert.equal(res2.getBody().error, 'Forbidden');
+
+  // Case 3: Legitimate configured token matches DSH_AUTH_TOKEN
+  const prevEnv = process.env.DSH_AUTH_TOKEN;
+  try {
+    process.env.DSH_AUTH_TOKEN = 'secret-test-token-777';
+
+    // Wrong token rejected
+    const req3Bad = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+      'authorization': 'Bearer wrong-secret',
+      'sec-fetch-site': undefined
+    });
+    req3Bad.socket = { remoteAddress: '192.168.1.50' };
+    const res3Bad = createMockRes();
+    await handler(req3Bad, res3Bad);
+    assert.equal(res3Bad.getStatusCode(), 403);
+
+    // Matching token accepted
+    const req3Good = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3', name: 'Server 3' }, {
+      'authorization': 'Bearer secret-test-token-777',
+      'sec-fetch-site': undefined
+    });
+    req3Good.socket = { remoteAddress: '192.168.1.50' };
+    const res3Good = createMockRes();
+    await handler(req3Good, res3Good);
+    assert.equal(res3Good.getStatusCode(), 200);
+  } finally {
+    if (prevEnv !== undefined) process.env.DSH_AUTH_TOKEN = prevEnv;
+    else delete process.env.DSH_AUTH_TOKEN;
+  }
+});
