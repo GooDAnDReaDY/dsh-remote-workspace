@@ -14,8 +14,8 @@
 - Слот настроек: `settings.plugin.item`, namespace `dsh-remote-workspace`.
 - Маршруты: `/dsh-remote-workspace/*`.
 - Локали продукта: `en` и `zh`. Русские строки интерфейса живут только в `dsh-russian-lang`.
-- Текущая версия в `package.json`: `0.3.7`
-- Статус проверен: 2026-09-24, `origin/main` `971da85`, `npm test` на ветке batch 2 — 75 pass, 0 fail.
+- Текущая версия в `package.json`: `0.3.8`
+- Статус проверен: 2026-09-24, релизный коммит `0.3.8`, `npm test` на этой ветке.
 
 ## Commands
 

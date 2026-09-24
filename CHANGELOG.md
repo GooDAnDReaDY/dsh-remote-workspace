@@ -2,6 +2,20 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.8
+
+### Fixed
+- **Connection test payload**: the Test button posts the profile fields, so the route receives `host` and can open SSH. (Refs: #52)
+- **Loopback-only plugin update**: `POST` update accepts a loopback same-origin request with the update header. A private-network address alone is not trusted. (Refs: #53)
+- **Design contract stays internal**: `docs/design/DESIGN.md` is no longer included in the npm package or the public GitHub tree. (Refs: #54)
+- **Visible action errors**: save, delete, activation, directory browse, and tunnel stop show the server error in an alert. (Refs: #55)
+- **Connection badge**: the card header reads `/dsh-remote-workspace/state` and no longer shows a permanent Ready label. (Refs: #56)
+- **Shared chevron**: the header uses `IconChevronDownOutline14` when the primitives package provides it. (Refs: #57)
+- **Settings modules**: profile, sync, and tunnel cards are separate client modules. (Refs: #58)
+- **Tarball ignore**: `.gitignore` matches `*.tgz` without surrounding spaces. (Refs: #59)
+- **Localized plugin-list label**: the list title comes from the English and Chinese dictionaries. (Refs: #60)
+- **Updater version**: the row shows the installed version from the status response, or "Version unknown". It no longer prints a hardcoded `0.3.1`. (Refs: #61)
+
 ## 0.3.7
 
 ### Fixed

@@ -127,8 +127,10 @@ Four orthogonal, high-leverage tools exposed directly to LLM agents:
 - Designed strictly to DSH UX guidelines and styled after `dsh-clinebot`.
 - **Segmented Auth Switcher**: Clean tabbed toggle between Private Key and Password authentication.
 - **Remote Directory Browser Modal**: Interactive remote file browser with breadcrumb navigation and one-click path selection.
-- **Connection Diagnostic Badge**: Real-time ping testing with visual latency indicators and remote OS display.
-- **Action Triggers**: Quick buttons for directional synchronization and tunnel monitoring.
+- **Connection Diagnostic Badge**: Real-time ping testing with visual latency indicators and remote OS display. The header badge follows `/dsh-remote-workspace/state`: it shows a loading, empty, ready, or unavailable connection instead of a permanent Ready label.
+- **Action Triggers**: Quick buttons for directional synchronization and tunnel monitoring. A failed save, delete, activation, directory browse, or tunnel stop shows the server error in an alert on the card. Test Connection posts the profile fields, including `host`.
+- **Plugin list label**: English `Remote Workspace` or Chinese `远程开发工作区`, taken from the dictionaries already loaded with the card.
+- **Updater version**: the row shows the installed version returned by the status request. Before that response it shows "Version unknown".
 
 ---
 
