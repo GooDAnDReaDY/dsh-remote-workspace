@@ -2,7 +2,7 @@
 
 - Назначение: плагин DeepSeek Harness для SSH-профилей, SFTP, зеркальной синхронизации и проброса портов.
 - Пакет: `@goodandready/dsh-remote-workspace`
-- Версия: `0.3.7` (`package.json` на `origin/main` `971da85`, проверено 2026-09-24)
+- Версия: `0.3.8` (проверено 2026-09-24, `npm test` на релизной ветке)
 - DEV: `/mnt/external/Project/DEV/dhsplugins/dsh-remote-workspace`
 - OPT-каталога нет. Плагин ставится в профиль DSH пакетом.
 - Хост: `lib/index.js`. Клиент: `src/client/*` → `lib/client.js`.
