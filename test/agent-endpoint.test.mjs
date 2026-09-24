@@ -14,7 +14,9 @@ test('resolveAgentEndpoint uses the socket, Pageant, or SSH_AUTH_SOCK', () => {
 
 test('agent auth does not place a private key into the connection config', () => {
   const src = readFileSync(new URL('../lib/ssh-service.js', import.meta.url), 'utf8');
-  const agentBranch = src.slice(src.indexOf("authType === 'agent'"), src.indexOf("authType === 'agent'") + 220);
+  const start = src.indexOf("} else if (profile.authType === 'agent')");
+  const end = src.indexOf('} else {', start);
+  const agentBranch = src.slice(start, end);
   assert.match(agentBranch, /resolveAgentEndpoint/);
   assert.equal(agentBranch.includes('privateKey'), false);
 });
