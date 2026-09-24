@@ -1,3 +1,28 @@
+
+    function groupProfiles(list, mode) {
+      const profiles = Array.isArray(list) ? list : []
+      const bucket = (map, key, profile) => {
+        const name = key || 'ungrouped'
+        if (!map.has(name)) map.set(name, [])
+        map.get(name).push(profile)
+      }
+      if (mode === 'environment') {
+        const map = new Map()
+        profiles.forEach((profile) => bucket(map, String(profile.environment || '').trim(), profile))
+        return Array.from(map.entries()).map(([key, items]) => ({ key, items }))
+      }
+      if (mode === 'tag') {
+        const map = new Map()
+        profiles.forEach((profile) => {
+          const tags = Array.isArray(profile.tags) ? profile.tags.map((item) => String(item).trim()).filter(Boolean) : []
+          if (!tags.length) bucket(map, '', profile)
+          else tags.forEach((tag) => bucket(map, tag, profile))
+        })
+        return Array.from(map.entries()).map(([key, items]) => ({ key, items }))
+      }
+      return [{ key: 'all', items: profiles }]
+    }
+
     function ProfilesPanel(panel) {
     const {
         t,
@@ -22,6 +47,22 @@
         showPassword,
         setShowPassword,
       } = panel
+      const [groupMode, setGroupMode] = React.useState('flat')
+      const [groupReport, setGroupReport] = React.useState([])
+      const sections = groupProfiles(profiles, groupMode)
+      const testGroup = async (items) => {
+        try {
+          const res = await fetch('/dsh-remote-workspace/profiles/test-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: items.map((item) => item.id) })
+          })
+          const data = await res.json()
+          if (data && data.ok) setGroupReport(data.results || [])
+        } catch (err) {
+          setGroupReport([])
+        }
+      }
       return (
         React.createElement(
           'div',
@@ -48,7 +89,11 @@
                         passphrase: '',
                         password: '',
                         remoteWorkspace: '',
-                        localMirrorPath: ''
+                        localMirrorPath: '',
+                        environment: '',
+                        tags: [],
+                        location: '',
+                        description: ''
                       })
                       setTestResult(null)
                     }
@@ -126,6 +171,62 @@
                   )
                 ),
 
+                React.createElement(
+                  'div',
+                  { className: 'drw-field' },
+                  React.createElement('span', { className: 'drw-label' }, t('fJumpHosts')),
+                  React.createElement('input', {
+                    className: 'drw-input',
+                    placeholder: 'bastion-a, bastion-b',
+                    value: editing.jumpHostId || ((editing.jumpHosts || []).join(', ')),
+                    onChange: (e) => {
+                      const raw = e.target.value;
+                      const jumpHosts = raw.split(',').map((item) => item.trim()).filter(Boolean);
+                      setEditing({ ...editing, jumpHostId: raw, jumpHosts });
+                    }
+                  }),
+                  React.createElement('span', { className: 'drw-hint' }, t('fJumpHostsHint'))
+                ),
+
+                React.createElement(
+                  'div',
+                  { className: 'drw-field' },
+                  React.createElement('span', { className: 'drw-label' }, t('fProxyCommand')),
+                  React.createElement('input', {
+                    className: 'drw-input',
+                    placeholder: 'cloudflared access ssh --hostname %h',
+                    value: editing.proxyCommand || '',
+                    onChange: (e) => setEditing({ ...editing, proxyCommand: e.target.value })
+                  }),
+                  React.createElement('span', { className: 'drw-hint' }, t('fProxyCommandHint'))
+                ),
+
+
+                React.createElement(
+                  'div',
+                  { className: 'drw-grid-2' },
+                  React.createElement('div', { className: 'drw-field' },
+                    React.createElement('span', { className: 'drw-label' }, t('fEnvironment')),
+                    React.createElement('input', { className: 'drw-input', value: editing.environment || '', onChange: (e) => setEditing({ ...editing, environment: e.target.value }) })
+                  ),
+                  React.createElement('div', { className: 'drw-field' },
+                    React.createElement('span', { className: 'drw-label' }, t('fLocation')),
+                    React.createElement('input', { className: 'drw-input', value: editing.location || '', onChange: (e) => setEditing({ ...editing, location: e.target.value }) })
+                  ),
+                  React.createElement('div', { className: 'drw-field' },
+                    React.createElement('span', { className: 'drw-label' }, t('fTags')),
+                    React.createElement('input', {
+                      className: 'drw-input',
+                      value: Array.isArray(editing.tags) ? editing.tags.join(', ') : (editing.tags || ''),
+                      onChange: (e) => setEditing({ ...editing, tags: e.target.value.split(',').map((item) => item.trim()).filter(Boolean) })
+                    })
+                  ),
+                  React.createElement('div', { className: 'drw-field' },
+                    React.createElement('span', { className: 'drw-label' }, t('fDescription')),
+                    React.createElement('input', { className: 'drw-input', value: editing.description || '', onChange: (e) => setEditing({ ...editing, description: e.target.value }) })
+                  )
+                ),
+
                 // Auth Method Segmented Switcher (Key vs Password)
                 React.createElement(
                   'div',
@@ -138,10 +239,19 @@
                       'button',
                       {
                         type: 'button',
-                        className: `drw-segmented-item ${editing.authType !== 'password' ? 'drw-segmented-item-active' : ''}`,
+                        className: `drw-segmented-item ${editing.authType !== 'password' && editing.authType !== 'agent' ? 'drw-segmented-item-active' : ''}`,
                         onClick: () => setEditing({ ...editing, authType: 'key' })
                       },
                       '🔑 ' + t('fAuthKey')
+                    ),
+                    React.createElement(
+                      'button',
+                      {
+                        type: 'button',
+                        className: `drw-segmented-item ${editing.authType === 'agent' ? 'drw-segmented-item-active' : ''}`,
+                        onClick: () => setEditing({ ...editing, authType: 'agent' })
+                      },
+                      t('fAuthAgent')
                     ),
                     React.createElement(
                       'button',
@@ -156,7 +266,19 @@
                 ),
 
                 // Conditional Auth Inputs
-                editing.authType === 'password'
+                editing.authType === 'agent'
+                  ? React.createElement(
+                      'div',
+                      { className: 'drw-field' },
+                      React.createElement('span', { className: 'drw-label' }, t('fAgentPath')),
+                      React.createElement('input', {
+                        className: 'drw-input',
+                        placeholder: t('fAgentPathHint'),
+                        value: editing.agentPath || '',
+                        onChange: (e) => setEditing({ ...editing, agentPath: e.target.value })
+                      })
+                    )
+                  : editing.authType === 'password'
                   ? React.createElement(
                       'div',
                       { className: 'drw-field' },
@@ -391,6 +513,23 @@
               )
             : null,
 
+
+          React.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
+            ['flat', 'environment', 'tag'].map((mode) => React.createElement('button', {
+              key: mode,
+              type: 'button',
+              className: groupMode === mode ? 'drw-btn drw-btn-primary' : 'drw-btn',
+              onClick: () => setGroupMode(mode)
+            }, t(mode === 'flat' ? 'groupFlat' : mode === 'environment' ? 'groupEnvironment' : 'groupTag')))
+          ),
+          groupReport.length
+            ? React.createElement('div', { className: 'drw-hint', role: 'status' },
+                groupReport.map((item) => React.createElement('div', { key: item.id + (item.name || '') },
+                  (item.name || item.id) + ': ' + (item.ok ? t('groupOnline', { latency: item.latencyMs || 0 }) : t('groupOffline', { err: item.error || '' }))
+                ))
+              )
+            : null,
+
           // Profiles List Table
           profiles.length > 0
             ? React.createElement(
@@ -412,7 +551,17 @@
                 React.createElement(
                   'tbody',
                   null,
-                  profiles.map((p) => {
+                  sections.flatMap((section) => {
+                    const header = groupMode === 'flat' ? [] : [
+                      React.createElement('tr', { key: 'group-' + section.key },
+                        React.createElement('td', { colSpan: 5 },
+                          React.createElement('strong', null, section.key === 'ungrouped' ? t('groupUngrouped') : section.key),
+                          ' ',
+                          React.createElement('button', { type: 'button', className: 'drw-btn', onClick: () => testGroup(section.items) }, t('testGroup'))
+                        )
+                      )
+                    ]
+                    return header.concat(section.items.map((p) => {
                     const isAct = p.id === activeId
                     return React.createElement(
                       'tr',
@@ -424,7 +573,7 @@
                         React.createElement(
                           'span',
                           { className: 'drw-badge', style: { marginLeft: '8px' } },
-                          p.authType === 'password' ? '🔒 pwd' : '🔑 key'
+                          p.authType === 'password' ? '🔒 ' + t('fAuthPassShort') : p.authType === 'agent' ? t('fAuthAgentShort') : '🔑 ' + t('fAuthKeyShort')
                         ),
                         isAct
                           ? React.createElement('span', { className: 'drw-badge drw-badge-ok', style: { marginLeft: '6px' } }, t('activeBadge'))
@@ -477,6 +626,7 @@
                         )
                       )
                     )
+                  }))
                   })
                 )
               )

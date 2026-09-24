@@ -11,9 +11,13 @@
       const [busy, setBusy] = React.useState(null)
       const [testResult, setTestResult] = React.useState(null)
       const [actionError, setActionError] = React.useState('')
+      const [authPrompts, setAuthPrompts] = React.useState([])
+      const [authAnswers, setAuthAnswers] = React.useState({})
+      const [importReport, setImportReport] = React.useState(null)
       const [syncMsg, setSyncMsg] = React.useState(null)
       const [tunnelMsg, setTunnelMsg] = React.useState(null)
       const [showPassword, setShowPassword] = React.useState(false)
+      const [terminalFont, setTerminalFont] = React.useState('')
 
       // Tunnel creation inputs
       const [newTunnelLocal, setNewTunnelLocal] = React.useState('3000')
@@ -40,7 +44,12 @@
         return text ? null : data
       }
 
-      const loadState = async () => {
+      const loadInFlight = React.useRef(false)
+
+      const loadState = async (force) => {
+        const hidden = typeof document !== 'undefined' && document.hidden
+        if (!force && (hidden || loadInFlight.current)) return
+        loadInFlight.current = true
         try {
           const res = await fetch('/dsh-remote-workspace/state')
           const data = await reportAction(res)
@@ -49,19 +58,66 @@
             setActiveId(data.activeId || null)
             setTunnels(data.tunnels || [])
             setAutoSync(Boolean(data.autoSync))
+            setAuthPrompts(data.authPrompts || [])
+            setTerminalFont(data.terminalFontFamily || '')
+            applyTerminalFont(data.terminalFontFamily || '')
             if (data.activeId) {
               fetch(`/dsh-remote-workspace/health?profileId=${data.activeId}`).then(r => r.json()).then(h => { if (h.ok) setHealthData(h.health) }).catch(() => {})
             }
           }
         } catch (err) {
           setActionError(err && err.message ? err.message : t('actionFailed'))
+        } finally {
+          loadInFlight.current = false
         }
       }
 
       React.useEffect(() => {
         ensureCss()
-        loadState()
+        loadState(true)
+        const timer = setInterval(() => loadState(false), 2000)
+        const onVisible = () => {
+          if (typeof document !== 'undefined' && !document.hidden) loadState(true)
+        }
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
+        return () => {
+          clearInterval(timer)
+          if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+        }
       }, [])
+
+
+      const saveTerminalFont = async () => {
+        try {
+          const res = await fetch('/dsh-remote-workspace/terminal/font', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fontFamily: terminalFont })
+          })
+          const data = await reportAction(res)
+          if (data && data.ok) {
+            setTerminalFont(data.terminalFontFamily || '')
+            applyTerminalFont(data.terminalFontFamily || '')
+          }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
+
+      const submitAuth = async (prompt) => {
+        const answers = (prompt.prompts || []).map((_, index) => authAnswers[prompt.profileId + ':' + index] || '')
+        try {
+          const res = await fetch('/dsh-remote-workspace/auth/keyboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: prompt.profileId, answers })
+          })
+          const data = await reportAction(res)
+          if (data) await loadState()
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
 
       const handleSave = async (profile) => {
         setBusy('saving')
@@ -227,6 +283,31 @@
 
       const activeProfile = profiles.find((p) => p.id === activeId)
 
+      const handleImport = async () => {
+        try {
+          const res = await fetch('/dsh-remote-workspace/profiles/import-ssh-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+          })
+          const data = await reportAction(res)
+          if (data) {
+            setImportReport(data)
+            await loadState()
+          }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
+
+      const skipReason = (reason) => {
+        if (reason === 'wildcard') return t('skipWildcard')
+        if (reason === 'match') return t('skipMatch')
+        if (reason === 'duplicate') return t('skipDuplicate')
+        if (reason === 'missing-include') return t('skipMissing')
+        return reason
+      }
+
       return React.createElement(
         'div',
         { className: 'drw-page' },
@@ -258,7 +339,76 @@
         ),
 
 
-        React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
+
+        authPrompts.length
+          ? React.createElement(
+              'div',
+              { className: 'drw-card', role: 'dialog', 'aria-label': t('authPromptTitle') },
+              React.createElement('div', { className: 'drw-page-title' }, t('authPromptTitle')),
+              authPrompts.map((prompt) => React.createElement(
+                'div',
+                { key: prompt.profileId, className: 'drw-field' },
+                prompt.instructions
+                  ? React.createElement('span', { className: 'drw-hint' }, prompt.instructions)
+                  : null,
+                (prompt.prompts || []).map((field, index) => React.createElement('input', {
+                  key: index,
+                  className: 'drw-input',
+                  type: field.echo ? 'text' : 'password',
+                  placeholder: field.prompt || t('authPromptCode'),
+                  value: authAnswers[prompt.profileId + ':' + index] || '',
+                  onChange: (e) => setAuthAnswers({ ...authAnswers, [prompt.profileId + ':' + index]: e.target.value })
+                })),
+                React.createElement('button', {
+                  type: 'button',
+                  className: 'drw-btn drw-btn-primary',
+                  onClick: () => submitAuth(prompt)
+                }, t('authPromptSubmit'))
+              ))
+            )
+          : null,
+
+
+        React.createElement(
+          'div',
+          { className: 'drw-card' },
+          React.createElement('button', { type: 'button', className: 'drw-btn', onClick: handleImport }, t('btnImportSsh')),
+          importReport
+            ? React.createElement(
+                'div',
+                { className: 'drw-hint', role: 'status' },
+                t('importAdded', { count: importReport.count || 0 }),
+                (importReport.skipped || []).map((item, index) => React.createElement('div', { key: index }, (item.name || '') + ': ' + skipReason(item.reason)))
+              )
+            : null
+        ),
+
+
+        React.createElement('div', { className: 'drw-card' },
+          React.createElement('label', { className: 'drw-label' }, t('fTerminalFont')),
+          React.createElement('div', { style: { display: 'flex', gap: '8px' } },
+            React.createElement('input', {
+              className: 'drw-input',
+              type: 'text',
+              value: terminalFont,
+              placeholder: 'ui-monospace, Consolas, monospace',
+              onChange: (e) => setTerminalFont(e.target.value)
+            }),
+            React.createElement('button', { type: 'button', className: 'drw-btn', onClick: saveTerminalFont }, t('btnSave'))
+          ),
+          React.createElement('div', { className: 'drw-hint' }, t('fTerminalFontHint'))
+        ),
+
+        React.createElement('div', { style: { display: 'flex', gap: '8px' } },
+          React.createElement('button', { type: 'button', className: activeTab === 'profiles' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('profiles') }, t('tabProfiles')),
+          React.createElement('button', { type: 'button', className: activeTab === 'cluster' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('cluster') }, t('tabCluster'))
+          , React.createElement('button', { type: 'button', className: activeTab === 'files' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('files') }, t('tabFiles'))
+        ),
+        activeTab === 'cluster'
+          ? React.createElement(ClusterPanel, { t, profiles })
+          : activeTab === 'files'
+            ? React.createElement(ExplorerTab, { t, activeProfile })
+            : React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
 
 
         // Section 2: Active Connection Diagnostics (ClineBot Card 4 style)

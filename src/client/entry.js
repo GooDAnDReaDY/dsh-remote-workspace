@@ -1,4 +1,5 @@
     function apply(ctx) {
+      try { mountRemoteWorkspace(ctx) } catch (err) { console.warn('[dsh-remote-workspace] workspace mount skipped', err && err.message) }
       if (ctx.locale && typeof ctx.locale.register === 'function') {
         if (typeof ctx.effect === 'function') {
           ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'dsh-remote-workspace: dictionaries');
