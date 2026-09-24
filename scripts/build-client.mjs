@@ -13,6 +13,7 @@ const sourceFiles = [
   'profiles-panel.js',
   'sync-panel.js',
   'tunnels-panel.js',
+  'cluster-panel.js',
   'settings-view.js',
   'updater-section.js',
   'plugin-card.js',
