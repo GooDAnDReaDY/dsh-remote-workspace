@@ -100,7 +100,7 @@
           const res = await fetch('/dsh-remote-workspace/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile: prof })
+            body: JSON.stringify(prof)
           })
           const data = await res.json()
           setTestResult(data)
