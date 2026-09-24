@@ -348,3 +348,49 @@ test('API Routes [Issue #32]: rejects arbitrary Bearer token and cookie substrin
     else delete process.env.DSH_AUTH_TOKEN;
   }
 });
+
+test('API Routes [Issue #31]: rejects untrusted GET requests across all 5 sensitive read endpoints', async () => {
+  const { registered, mockStore } = setupTestRoutes();
+
+  // Add a profile with a secret password and privateKey
+  mockStore.getProfiles()[0].password = 'super-secret-password';
+  mockStore.getProfiles()[0].privateKey = 'super-secret-key';
+
+  const endpoints = [
+    '/dsh-remote-workspace/state',
+    '/dsh-remote-workspace/health',
+    '/dsh-remote-workspace/docker/list',
+    '/dsh-remote-workspace/terminal/stream',
+    '/dsh-remote-workspace/tunnels/telemetry'
+  ];
+
+  for (const path of endpoints) {
+    const handler = registered.get(path);
+    assert.ok(handler, `Handler for ${path} should be registered`);
+
+    const untrustedReq = createMockReq('GET', path, null, {
+      'sec-fetch-site': 'cross-site'
+    });
+    untrustedReq.socket = { remoteAddress: '192.168.1.50' };
+    const res = createMockRes();
+    await handler(untrustedReq, res);
+
+    assert.equal(res.getStatusCode(), 403, `${path} must return 403 for untrusted requests`);
+    assert.equal(res.getBody().error, 'Forbidden');
+  }
+
+  // Verify that trusted /state request masks secrets even without store.vault
+  const stateHandler = registered.get('/dsh-remote-workspace/state');
+  const trustedReq = createMockReq('GET', '/dsh-remote-workspace/state', null, {
+    'sec-fetch-site': 'same-origin'
+  });
+  const res = createMockRes();
+  await stateHandler(trustedReq, res);
+
+  assert.equal(res.getStatusCode(), 200);
+  const data = res.getBody();
+  assert.equal(data.ok, true);
+  const prof = data.profiles[0];
+  assert.equal(prof.password, '••••••••', 'Password must be masked');
+  assert.equal(prof.privateKey, '••••••••', 'PrivateKey must be masked');
+});
