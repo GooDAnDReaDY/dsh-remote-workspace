@@ -97,3 +97,86 @@ test('MirrorSyncService: clean pull when only remote changed', async () => {
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('MirrorSyncService: preserves binary data integrity without UTF-8 corruption', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-sync-binary-'));
+  const localDir = path.join(tmpDir, 'local');
+  fs.mkdirSync(localDir, { recursive: true });
+
+  // Create binary data containing bytes that are invalid in UTF-8: 0x80, 0xFF, 0x00, 0xC0
+  const binaryData = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0xFF, 0xFE, 0x80, 0xC3]);
+  const filename = 'image.png';
+
+  let savedRemoteBuffer = null;
+  const mockRemoteFs = {
+    async readFile(profile, filePath, encoding) {
+      return binaryData;
+    },
+    async mkdir() {},
+    async writeFile(profile, filePath, content) {
+      savedRemoteBuffer = content;
+    }
+  };
+
+  const mockSshService = {
+    async exec() {
+      return {
+        code: 0,
+        stdout: `${filename}\t${binaryData.length}\t1700000000\n`,
+        stderr: ''
+      };
+    }
+  };
+
+  const sync = new MirrorSyncService(mockRemoteFs, mockSshService);
+
+  // 1. Test clean pull of binary file
+  const pullResult = await sync.pull({ id: 'p1' }, '/remote', localDir, false);
+  assert.equal(pullResult.success, true);
+  assert.deepEqual(pullResult.pulled, [filename]);
+
+  const pulledLocalBuffer = fs.readFileSync(path.join(localDir, filename));
+  assert.ok(Buffer.isBuffer(pulledLocalBuffer));
+  assert.equal(Buffer.compare(pulledLocalBuffer, binaryData), 0, 'Pulled binary data must match byte-for-byte');
+
+  // 2. Test push of binary file (force=true, dryRun=false)
+  const pushResult = await sync.push({ id: 'p1' }, localDir, '/remote', true, false);
+  assert.equal(pushResult.success, true);
+  assert.deepEqual(pushResult.pushed, [filename]);
+  assert.ok(Buffer.isBuffer(savedRemoteBuffer));
+  assert.equal(Buffer.compare(savedRemoteBuffer, binaryData), 0, 'Pushed binary data must match byte-for-byte');
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('MirrorSyncService: deduplicates parent mkdir calls when pushing multiple files in same dir', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-sync-mkdir-'));
+  const localDir = path.join(tmpDir, 'local');
+  const subDir = path.join(localDir, 'nested', 'pkg');
+  fs.mkdirSync(subDir, { recursive: true });
+
+  fs.writeFileSync(path.join(subDir, 'file1.txt'), 'content 1');
+  fs.writeFileSync(path.join(subDir, 'file2.txt'), 'content 2');
+  fs.writeFileSync(path.join(subDir, 'file3.txt'), 'content 3');
+
+  const mkdirCalls = [];
+  const mockRemoteFs = {
+    async mkdir(profile, remotePath) {
+      mkdirCalls.push(remotePath);
+    },
+    async writeFile() {}
+  };
+
+  const sync = new MirrorSyncService(mockRemoteFs, {});
+  const res = await sync.push({ id: 'p1' }, localDir, '/remote/app', true, false);
+
+  assert.equal(res.success, true);
+  assert.equal(res.pushed.length, 3);
+  // remotePath for all 3 files is /remote/app/nested/pkg; mkdir should be called only once
+  assert.equal(mkdirCalls.length, 1);
+  assert.equal(mkdirCalls[0], '/remote/app/nested/pkg');
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

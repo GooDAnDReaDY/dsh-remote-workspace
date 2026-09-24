@@ -87,3 +87,28 @@ test('RemoteFsService: writeFile writes to temp and renames atomically', async (
   assert.match(renamedFrom, /\/app\/server\.js\.dsh-tmp\./);
   assert.equal(renamedTo, '/app/server.js');
 });
+
+test('RemoteFsService: list alias calls listDir correctly', async () => {
+  const mockSftp = {
+    readdir(path, cb) {
+      cb(null, [
+        { filename: 'index.js', attrs: { mode: 0o100644, size: 512, mtime: 1700000000 } },
+        { filename: 'lib', attrs: { mode: 0o040755, size: 4096, mtime: 1700000001 } }
+      ]);
+    }
+  };
+
+  const mockSshService = {
+    async getSftp() {
+      return mockSftp;
+    }
+  };
+
+  const remoteFs = new RemoteFsService(mockSshService);
+  const entries = await remoteFs.list({ id: 'test' }, '/app');
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].filename, 'index.js');
+  assert.equal(entries[0].isFile, true);
+  assert.equal(entries[1].filename, 'lib');
+  assert.equal(entries[1].isDirectory, true);
+});

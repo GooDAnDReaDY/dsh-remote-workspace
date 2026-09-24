@@ -120,3 +120,29 @@ test('AlertService: identifies critical disk and memory conditions', async () =>
   assert.ok(alerts.some((a) => a.type === 'memory_high'));
   assert.equal(emitted.length, 2);
 });
+
+test('TarSyncService & shellQuote: safely quotes shell metacharacters and rejects invalid remoteDir', async () => {
+  const { shellQuote, TarSyncService } = await import('../lib/tar-sync-service.js');
+
+  // Test shellQuote escaping
+  assert.equal(shellQuote(''), "''");
+  assert.equal(shellQuote('/simple/path'), "'/simple/path'");
+  assert.equal(shellQuote("path with spaces and 'quotes'"), "'path with spaces and '\\''quotes'\\'''");
+  assert.equal(shellQuote('; rm -rf /; $(whoami); `id`'), "'; rm -rf /; $(whoami); `id`'");
+  assert.equal(shellQuote('$HOME/${USER}'), "'$HOME/${USER}'");
+
+  const service = new TarSyncService({});
+
+  // Test empty and invalid remoteDir rejection
+  await assert.rejects(async () => {
+    await service.pushTar({ id: 'p1' }, '/tmp', '');
+  }, /remoteDir must be a non-empty string/);
+
+  await assert.rejects(async () => {
+    await service.pullTar({ id: 'p1' }, null, '/tmp');
+  }, /remoteDir must be a non-empty string/);
+
+  await assert.rejects(async () => {
+    await service.pullTar(null, '/remote', '/tmp');
+  }, /No profile provided/);
+});

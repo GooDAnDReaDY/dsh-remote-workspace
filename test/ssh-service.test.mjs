@@ -12,3 +12,29 @@ test('SshService: resolves private keys properly', () => {
   const res2 = service.resolvePrivateKey({ privateKeyPath: '/non/existent/path/key' });
   assert.equal(res2, undefined);
 });
+
+test('SshService: createTerminalSession accepts both options object and positional numbers', async () => {
+  const service = new SshService({});
+  let passedShellOpts = null;
+  service.getConnection = async () => ({
+    shell(opts, cb) {
+      passedShellOpts = opts;
+      cb(null, {
+        write() {},
+        setWindow() {},
+        end() {},
+        on() {}
+      });
+    }
+  });
+
+  const session1 = await service.createTerminalSession({ id: 'p1' }, { cols: 100, rows: 30 });
+  assert.equal(passedShellOpts.cols, 100);
+  assert.equal(passedShellOpts.rows, 30);
+  assert.ok(session1.id.startsWith('term_'));
+
+  const session2 = await service.createTerminalSession({ id: 'p1' }, 110, 35);
+  assert.equal(passedShellOpts.cols, 110);
+  assert.equal(passedShellOpts.rows, 35);
+  assert.ok(session2.id.startsWith('term_'));
+});

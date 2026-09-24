@@ -83,10 +83,15 @@ function setupTestRoutes() {
     setActiveId: async (id) => { activeId = id; }
   };
 
+  let lastTerminalOptions = null;
   const mockSsh = {
     invalidate: () => {},
     disconnect: () => {},
-    testConnection: async () => ({ success: true, latency: 12, os: 'Linux 6.8' })
+    testConnection: async () => ({ success: true, latency: 12, os: 'Linux 6.8' }),
+    createTerminalSession: async (profile, options) => {
+      lastTerminalOptions = options;
+      return { id: 'term_mock_1', profileId: profile.id };
+    }
   };
 
   const mockFs = {
@@ -106,7 +111,7 @@ function setupTestRoutes() {
 
   registerApiRoutes(mockCtx, mockSsh, mockFs, mockSync, mockTunnel, mockStore);
 
-  return { registered, mockStore, mockSsh, mockFs, mockSync, mockTunnel };
+  return { registered, mockStore, mockSsh, mockFs, mockSync, mockTunnel, getLastTerminalOptions: () => lastTerminalOptions };
 }
 
 test('API Routes: GET /dsh-remote-workspace/state returns profiles and activeId', async () => {
@@ -186,4 +191,206 @@ test('API Routes: POST /dsh-remote-workspace/tunnels/start and stop manage tunne
   await stopHandler(stopReq, stopRes);
   assert.equal(stopRes.getStatusCode(), 200);
   assert.equal(stopRes.getBody().ok, true);
+});
+
+test('API Routes: POST /dsh-remote-workspace/browse calls listDir and returns entries and items', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/browse');
+  assert.ok(handler, 'Route /browse should be registered');
+
+  // Case 1: with profileId
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/browse', { profileId: 'p1', remotePath: '/remote/src' });
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 200);
+  const data1 = res1.getBody();
+  assert.equal(data1.ok, true);
+  assert.ok(Array.isArray(data1.entries));
+  assert.equal(data1.entries.length, 1);
+  assert.equal(data1.entries[0].filename, 'src');
+  assert.equal(data1.items.length, 1);
+  assert.equal(data1.currentPath, '/remote/src');
+
+  // Case 2: with inline profile object from settings editor
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/browse', {
+    profile: { id: 'custom-temp', host: '192.168.1.50' },
+    remotePath: '/var/www'
+  });
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 200);
+  const data2 = res2.getBody();
+  assert.equal(data2.ok, true);
+  assert.ok(Array.isArray(data2.entries));
+
+  // Case 3: profile not found
+  const req3 = createMockReq('POST', '/dsh-remote-workspace/browse', { profileId: 'nonexistent' });
+  const res3 = createMockRes();
+  await handler(req3, res3);
+  assert.equal(res3.getStatusCode(), 404);
+});
+
+test('API Routes: POST /dsh-remote-workspace/terminal/create passes options object', async () => {
+  const { registered, getLastTerminalOptions } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/terminal/create');
+  assert.ok(handler, 'Route /terminal/create should be registered');
+
+  const req = createMockReq('POST', '/dsh-remote-workspace/terminal/create', { profileId: 'p1', cols: 100, rows: 35 });
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 200);
+  const data = res.getBody();
+  assert.equal(data.ok, true);
+  assert.equal(data.sessionId, 'term_mock_1');
+  const passedOpts = getLastTerminalOptions();
+  assert.deepEqual(passedOpts, { cols: 100, rows: 35 });
+});
+
+test('API Routes [Issue #25]: rejects cross-site requests even when originating from loopback IP', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  // Case 1: Loopback IP with sec-fetch-site: cross-site
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'evil', host: 'evil.com' }, {
+    'sec-fetch-site': 'cross-site',
+    'host': '127.0.0.1:3000'
+  });
+  req1.socket = { remoteAddress: '127.0.0.1' };
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 403);
+  assert.equal(res1.getBody().error, 'Forbidden');
+
+  // Case 2: Loopback IP with cross-origin origin header (e.g. evil.com attacking localhost)
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'evil', host: 'evil.com' }, {
+    'sec-fetch-site': 'cross-site',
+    'origin': 'http://evil.com',
+    'host': '127.0.0.1:3000'
+  });
+  req2.socket = { remoteAddress: '127.0.0.1' };
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 403);
+  assert.equal(res2.getBody().error, 'Forbidden');
+
+  // Case 3: Loopback IP with same-origin and matching origin succeeds
+  const req3 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'good', host: 'good.com' }, {
+    'sec-fetch-site': 'same-origin',
+    'origin': 'http://127.0.0.1:3000',
+    'host': '127.0.0.1:3000'
+  });
+  req3.socket = { remoteAddress: '127.0.0.1' };
+  const res3 = createMockRes();
+  await handler(req3, res3);
+
+  assert.equal(res3.getStatusCode(), 200);
+});
+
+test('API Routes [Issue #32]: rejects arbitrary Bearer token and cookie substring from untrusted address', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  // Case 1: Arbitrary Bearer token from remote IP without valid server token
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+    'authorization': 'Bearer arbitrary-untrusted-token',
+    'sec-fetch-site': undefined
+  });
+  req1.socket = { remoteAddress: '192.168.1.50' };
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 403);
+  assert.equal(res1.getBody().error, 'Forbidden');
+
+  // Case 2: Arbitrary cookie with token= substring from remote IP
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+    'cookie': 'other=1; token=arbitrary-cookie; session=xyz',
+    'sec-fetch-site': undefined
+  });
+  req2.socket = { remoteAddress: '192.168.1.50' };
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 403);
+  assert.equal(res2.getBody().error, 'Forbidden');
+
+  // Case 3: Legitimate configured token matches DSH_AUTH_TOKEN
+  const prevEnv = process.env.DSH_AUTH_TOKEN;
+  try {
+    process.env.DSH_AUTH_TOKEN = 'secret-test-token-777';
+
+    // Wrong token rejected
+    const req3Bad = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3' }, {
+      'authorization': 'Bearer wrong-secret',
+      'sec-fetch-site': undefined
+    });
+    req3Bad.socket = { remoteAddress: '192.168.1.50' };
+    const res3Bad = createMockRes();
+    await handler(req3Bad, res3Bad);
+    assert.equal(res3Bad.getStatusCode(), 403);
+
+    // Matching token accepted
+    const req3Good = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p3', host: '10.0.0.3', name: 'Server 3' }, {
+      'authorization': 'Bearer secret-test-token-777',
+      'sec-fetch-site': undefined
+    });
+    req3Good.socket = { remoteAddress: '192.168.1.50' };
+    const res3Good = createMockRes();
+    await handler(req3Good, res3Good);
+    assert.equal(res3Good.getStatusCode(), 200);
+  } finally {
+    if (prevEnv !== undefined) process.env.DSH_AUTH_TOKEN = prevEnv;
+    else delete process.env.DSH_AUTH_TOKEN;
+  }
+});
+
+test('API Routes [Issue #31]: rejects untrusted GET requests across all 5 sensitive read endpoints', async () => {
+  const { registered, mockStore } = setupTestRoutes();
+
+  // Add a profile with a secret password and privateKey
+  mockStore.getProfiles()[0].password = 'super-secret-password';
+  mockStore.getProfiles()[0].privateKey = 'super-secret-key';
+
+  const endpoints = [
+    '/dsh-remote-workspace/state',
+    '/dsh-remote-workspace/health',
+    '/dsh-remote-workspace/docker/list',
+    '/dsh-remote-workspace/terminal/stream',
+    '/dsh-remote-workspace/tunnels/telemetry'
+  ];
+
+  for (const path of endpoints) {
+    const handler = registered.get(path);
+    assert.ok(handler, `Handler for ${path} should be registered`);
+
+    const untrustedReq = createMockReq('GET', path, null, {
+      'sec-fetch-site': 'cross-site'
+    });
+    untrustedReq.socket = { remoteAddress: '192.168.1.50' };
+    const res = createMockRes();
+    await handler(untrustedReq, res);
+
+    assert.equal(res.getStatusCode(), 403, `${path} must return 403 for untrusted requests`);
+    assert.equal(res.getBody().error, 'Forbidden');
+  }
+
+  // Verify that trusted /state request masks secrets even without store.vault
+  const stateHandler = registered.get('/dsh-remote-workspace/state');
+  const trustedReq = createMockReq('GET', '/dsh-remote-workspace/state', null, {
+    'sec-fetch-site': 'same-origin'
+  });
+  const res = createMockRes();
+  await stateHandler(trustedReq, res);
+
+  assert.equal(res.getStatusCode(), 200);
+  const data = res.getBody();
+  assert.equal(data.ok, true);
+  const prof = data.profiles[0];
+  assert.equal(prof.password, '••••••••', 'Password must be masked');
+  assert.equal(prof.privateKey, '••••••••', 'PrivateKey must be masked');
 });
