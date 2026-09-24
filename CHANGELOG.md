@@ -2,6 +2,22 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.9
+
+### Added
+- **ProxyCommand and ProxyJump**: a profile can dial through an OpenSSH proxy command or a chain of bastions. The first jump uses the connection pool. Later jumps use their own connections and close when the target closes.
+- **SSH agent and keyboard sign-in**: authentication can use an agent socket, Pageant, or `SSH_AUTH_SOCK`. A keyboard-interactive prompt appears on the settings card and expires after 60 seconds.
+- **SSH config import**: importing `~/.ssh/config` follows `Include` and reports skipped wildcard, Match, duplicate, and missing-include blocks.
+- **Host groups and cluster commands**: hosts can be grouped by environment or tag and tested together. `remote_cluster` runs one command across the hosts that match an environment, tags, and aliases, with up to 8 workers by default.
+- **Compact host table**: `remote_hosts` gives the model a markdown table. Passwords, keys, and proxy commands are omitted.
+- **Idle sessions**: a pooled SSH connection closes after 30 minutes without use. A tunnel or a running command keeps its connection.
+- **Command reconnect**: a command that loses the connection before any output is tried up to three times. Output that already started, a command timeout, and `idempotent: false` are not retried.
+- **Dedicated terminal**: each terminal opens its own SSH connection and closes it with the session.
+- **Terminal font**: `terminalFontFamily` changes the terminal face. Characters that could alter the stylesheet are rejected.
+- **Quieter polling**: the settings card waits while the browser tab is hidden and does not overlap status requests.
+- **Browser file transfer**: a file can be uploaded or downloaded with byte progress and cancel. The limit is 512MB. An upload replaces the remote file only after the temporary upload finishes.
+- **Center workspace**: a sidebar button opens hosts, terminal, files, containers, tunnels, and cluster in the center column. Leaving for chat hides the column and keeps the terminal buffer.
+
 ## 0.3.8
 
 ### Fixed
