@@ -2,6 +2,19 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.7
+
+### Fixed
+- **Clean npm pack output**: Suppressed compilation progress to stderr in `scripts/build-client.mjs`, ensuring `npm pack --dry-run --json` parses cleanly without JSON syntax errors. (Refs: #28)
+- **File browsing API contract**: Resolved `remoteFs.list` method mismatch in `/browse` endpoint to use `remoteFs.listDir`, added backwards-compatible `RemoteFsService.prototype.list` alias, returned both `entries` and `items` along with `currentPath`, and supported inline draft profiles from settings modals. (Refs: #24)
+- **Terminal session argument passing**: Fixed `POST /terminal/create` to pass `{ cols, rows }` options object to `createTerminalSession`, added positional parameter fallback in `SshService`, and added active profile fallback. (Refs: #29)
+- **Shell metacharacter sanitization in tar sync**: Implemented POSIX `shellQuote` escaping in `TarSyncService` for all `remoteDir` paths, preventing command injection in `tar` and `mkdir` execution, with non-empty input validation. (Refs: #26)
+- **Binary data integrity in mirror sync**: Handled file synchronizations with raw `Buffer` streams instead of forced `utf8` strings, preventing binary corruption of assets (images, archives, compiled artifacts), and added `.dsh-sync-snapshot.json` to default ignore list. (Refs: #27)
+- **Performance in mirror sync push**: Deduplicated redundant sequential `mkdir -p` SSH executions during `push` operations via parent directory tracking Set. (Refs: #30)
+- **CSRF loopback protection**: Eliminated loopback bypass in `isTrustedSettingsRequest` by rejecting requests where `Sec-Fetch-Site !== 'same-origin'`, and validating `Origin` against request `Host`. (Refs: #25)
+- **Authorization token validation**: Enforced strict comparison of incoming Bearer and cookie tokens against configured server auth token (`DSH_AUTH_TOKEN` / `DSH_TOKEN`), rejecting arbitrary tokens and substrings from untrusted sources. (Refs: #32)
+- **GET endpoints source authorization & credential masking**: Enforced `isTrustedSettingsRequest` across 5 sensitive read endpoints (`/state`, `/health`, `/docker/list`, `/terminal/stream`, `/tunnels/telemetry`), and added fallback credential masking (`••••••••`) when vault service is not configured. (Refs: #31)
+
 ## 0.3.6
 
 ### Fixed
