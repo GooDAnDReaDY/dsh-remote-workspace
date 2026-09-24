@@ -126,6 +126,19 @@
                   )
                 ),
 
+                React.createElement(
+                  'div',
+                  { className: 'drw-field' },
+                  React.createElement('span', { className: 'drw-label' }, t('fProxyCommand')),
+                  React.createElement('input', {
+                    className: 'drw-input',
+                    placeholder: 'cloudflared access ssh --hostname %h',
+                    value: editing.proxyCommand || '',
+                    onChange: (e) => setEditing({ ...editing, proxyCommand: e.target.value })
+                  }),
+                  React.createElement('span', { className: 'drw-hint' }, t('fProxyCommandHint'))
+                ),
+
                 // Auth Method Segmented Switcher (Key vs Password)
                 React.createElement(
                   'div',

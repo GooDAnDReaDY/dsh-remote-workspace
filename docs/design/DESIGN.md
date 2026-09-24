@@ -98,3 +98,5 @@ emote_tunnel: создание/остановка/листинг туннеле�
 - Параметры инструментов компилируются в строгий JSON Schema с корнем `{ type: 'object', properties: ..., required: [...] }`.
 - Предотвращены ошибки валидации схем в OpenAI-совместимых провайдерах (`Invalid schema: schema must be a JSON Schema of 'type: "object"', got 'type: null'`).
 - Схема вывода стандартизирована с явным `{ type: 'object', additionalProperties: true }`.
+
+- 2026-09-24: профиль хранит необязательный `proxyCommand`. Непустая команда подменяет прямой TCP-сокет; `%h`, `%p`, `%r`, `%n` раскрываются перед запуском. Прыжок через `jumpHostId` используется только когда команда пуста.
