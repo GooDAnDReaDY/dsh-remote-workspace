@@ -48,6 +48,7 @@ EXTRA_ALLOW=(
 
 # Never publish these, even if they sneak into the allowlist.
 FORBIDDEN=(
+  "docs"
   "AGENTS.md"
   "index.md"
   "deploy.sh"
