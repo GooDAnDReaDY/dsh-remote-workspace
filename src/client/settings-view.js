@@ -13,6 +13,7 @@
       const [actionError, setActionError] = React.useState('')
       const [authPrompts, setAuthPrompts] = React.useState([])
       const [authAnswers, setAuthAnswers] = React.useState({})
+      const [importReport, setImportReport] = React.useState(null)
       const [syncMsg, setSyncMsg] = React.useState(null)
       const [tunnelMsg, setTunnelMsg] = React.useState(null)
       const [showPassword, setShowPassword] = React.useState(false)
@@ -247,6 +248,31 @@
 
       const activeProfile = profiles.find((p) => p.id === activeId)
 
+      const handleImport = async () => {
+        try {
+          const res = await fetch('/dsh-remote-workspace/profiles/import-ssh-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+          })
+          const data = await reportAction(res)
+          if (data) {
+            setImportReport(data)
+            await loadState()
+          }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
+      }
+
+      const skipReason = (reason) => {
+        if (reason === 'wildcard') return t('skipWildcard')
+        if (reason === 'match') return t('skipMatch')
+        if (reason === 'duplicate') return t('skipDuplicate')
+        if (reason === 'missing-include') return t('skipMissing')
+        return reason
+      }
+
       return React.createElement(
         'div',
         { className: 'drw-page' },
@@ -306,6 +332,21 @@
               ))
             )
           : null,
+
+
+        React.createElement(
+          'div',
+          { className: 'drw-card' },
+          React.createElement('button', { type: 'button', className: 'drw-btn', onClick: handleImport }, t('btnImportSsh')),
+          importReport
+            ? React.createElement(
+                'div',
+                { className: 'drw-hint', role: 'status' },
+                t('importAdded', { count: importReport.count || 0 }),
+                (importReport.skipped || []).map((item, index) => React.createElement('div', { key: index }, (item.name || '') + ': ' + skipReason(item.reason)))
+              )
+            : null
+        ),
 
         React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
 
