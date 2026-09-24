@@ -9,4 +9,8 @@ test('updater version falls back to a locale string', () => {
   assert.match(src, /updateStatus\?\.currentVersion \? 'v' \+ updateStatus\.currentVersion : t\('versionUnknown'\)/)
   assert.match(locales, /versionUnknown: 'Version unknown'/)
   assert.match(locales, /versionUnknown: '版本未知'/)
+
+  assert.match(locales, /checkUpdate: 'Check for updates'/)
+  assert.match(locales, /upToDate: 'Up to date'/)
+  assert.match(locales, /checking: 'Checking...'/)
 })
