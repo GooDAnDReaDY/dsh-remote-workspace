@@ -38,4 +38,4 @@ const suffix = `  },
 const contents = sourceFiles.map((file) => readFileSync(path.join(root, 'src/client', file), 'utf8').trimEnd())
 const bundle = prefix + contents.join('\n\n') + '\n\n' + suffix
 writeFileSync(path.join(root, 'lib/client.js'), bundle)
-console.log(`Built lib/client.js from ${sourceFiles.length} modules (${bundle.length} bytes)`)
+console.error(`Built lib/client.js from ${sourceFiles.length} modules (${bundle.length} bytes)`)
