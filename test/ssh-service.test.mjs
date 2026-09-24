@@ -16,13 +16,14 @@ test('SshService: resolves private keys properly', () => {
 test('SshService: createTerminalSession accepts both options object and positional numbers', async () => {
   const service = new SshService({});
   let passedShellOpts = null;
-  service.getConnection = async () => ({
+  service.connectDedicated = async () => ({
+    end() {},
     shell(opts, cb) {
       passedShellOpts = opts;
       cb(null, {
         write() {},
-        setWindow() {},
         end() {},
+        setWindow() {},
         on() {}
       });
     }
