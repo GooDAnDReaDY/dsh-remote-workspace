@@ -402,10 +402,13 @@
         React.createElement('div', { style: { display: 'flex', gap: '8px' } },
           React.createElement('button', { type: 'button', className: activeTab === 'profiles' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('profiles') }, t('tabProfiles')),
           React.createElement('button', { type: 'button', className: activeTab === 'cluster' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('cluster') }, t('tabCluster'))
+          , React.createElement('button', { type: 'button', className: activeTab === 'files' ? 'drw-btn drw-btn-primary' : 'drw-btn', onClick: () => setActiveTab('files') }, t('tabFiles'))
         ),
         activeTab === 'cluster'
           ? React.createElement(ClusterPanel, { t, profiles })
-          : React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
+          : activeTab === 'files'
+            ? React.createElement(ExplorerTab, { t, activeProfile })
+            : React.createElement(ProfilesPanel, { t, editing, setEditing, setTestResult, profiles, activeId, busy, handleSave, testResult, handleTest, handleSetActive, handleDelete, browserOpen, setBrowserOpen, browserPath, browserEntries, browserLoading, openDirectoryBrowser, fetchRemoteDir, showPassword, setShowPassword }),
 
 
         // Section 2: Active Connection Diagnostics (ClineBot Card 4 style)

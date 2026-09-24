@@ -8,6 +8,8 @@
       const [editContent, setEditContent] = React.useState('')
       const [previewLoading, setPreviewLoading] = React.useState(false)
       const [saveStatus, setSaveStatus] = React.useState(null)
+      const [transfer, setTransfer] = React.useState(null)
+      const transferAbort = React.useRef(null)
 
       const loadDir = async (dirPath) => {
         if (!activeProfile) return
@@ -65,6 +67,75 @@
         setPreviewLoading(false)
       }
 
+
+      const filePathFor = (entry) => currentPath.endsWith('/') ? currentPath + entry.filename : currentPath + '/' + entry.filename
+
+      const downloadFile = async (entry, event) => {
+        if (event) event.stopPropagation()
+        if (!activeProfile) return
+        const ctrl = new AbortController()
+        transferAbort.current = () => ctrl.abort()
+        setTransfer({ name: entry.filename, percent: 0 })
+        try {
+          const params = new URLSearchParams({ profileId: activeProfile.id, filePath: filePathFor(entry) })
+          const res = await fetch('/dsh-remote-workspace/file/download?' + params.toString(), { signal: ctrl.signal })
+          if (!res.ok || !res.body) {
+            setTransfer({ name: entry.filename, error: true })
+            return
+          }
+          const total = Number(res.headers.get('content-length')) || 0
+          const reader = res.body.getReader()
+          const chunks = []
+          let loaded = 0
+          while (true) {
+            const step = await reader.read()
+            if (step.done) break
+            chunks.push(step.value)
+            loaded += step.value.length
+            setTransfer({ name: entry.filename, percent: total ? Math.min(100, Math.round((loaded / total) * 100)) : 0 })
+          }
+          const blob = new Blob(chunks)
+          const link = document.createElement('a')
+          link.href = URL.createObjectURL(blob)
+          link.download = entry.filename
+          link.click()
+          URL.revokeObjectURL(link.href)
+          setTransfer(null)
+        } catch (err) {
+          setTransfer({ name: entry.filename, error: err && err.name === 'AbortError' })
+        }
+      }
+
+      const uploadFile = () => {
+        if (!activeProfile) return
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.onchange = () => {
+          const file = input.files && input.files[0]
+          if (!file) return
+          const remotePath = currentPath.endsWith('/') ? currentPath + file.name : currentPath + '/' + file.name
+          const xhr = new XMLHttpRequest()
+          const params = new URLSearchParams({ profileId: activeProfile.id, filePath: remotePath })
+          xhr.open('POST', '/dsh-remote-workspace/file/upload?' + params.toString())
+          transferAbort.current = () => xhr.abort()
+          setTransfer({ name: file.name, percent: 0 })
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              setTransfer({ name: file.name, percent: Math.min(100, Math.round((event.loaded / event.total) * 100)) })
+            }
+          }
+          xhr.onload = () => {
+            setTransfer(null)
+            if (xhr.status >= 200 && xhr.status < 300) loadDir(currentPath)
+            else setTransfer({ name: file.name, error: true })
+          }
+          xhr.onerror = () => setTransfer({ name: file.name, error: true })
+          xhr.onabort = () => setTransfer({ name: file.name, error: true })
+          xhr.send(file)
+        }
+        input.click()
+      }
+
       const handleSaveFile = async () => {
         if (!previewFile || !activeProfile) return
         setSaveStatus('saving')
@@ -102,8 +173,15 @@
               disabled: loading
             },
             loading ? 'Refreshing...' : '🔄 Refresh'
-          )
+          ),
+          React.createElement('button', { type: 'button', className: 'drw-btn', onClick: uploadFile }, t('btnUpload'))
         ),
+        transfer
+          ? React.createElement('div', { className: 'drw-hint', role: 'status' },
+              transfer.error ? t('transferFailed', { name: transfer.name }) : t('transferProgress', { name: transfer.name, percent: transfer.percent || 0 }),
+              React.createElement('button', { type: 'button', className: 'drw-btn', onClick: () => transferAbort.current && transferAbort.current() }, t('transferCancel'))
+            )
+          : null,
         React.createElement(
           'div',
           { className: 'drw-explorer-nav' },
@@ -144,7 +222,8 @@
                     'div',
                     { className: 'drw-file-meta' },
                     e.size !== undefined ? React.createElement('span', null, `${Math.round(e.size / 1024)} KB`) : null,
-                    e.permissions ? React.createElement('span', { style: { opacity: 0.6 } }, e.permissions) : null
+                    e.permissions ? React.createElement('span', { style: { opacity: 0.6 } }, e.permissions) : null,
+                    e.isDirectory ? null : React.createElement('button', { type: 'button', className: 'drw-btn', onClick: (event) => downloadFile(e, event) }, t('btnDownload'))
                   )
                 )
               )
