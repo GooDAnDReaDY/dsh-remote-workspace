@@ -2,6 +2,7 @@
       title: 'Remote Workspace',
       subtitle: 'Native SSH connections, SFTP file access, 3-way mirror sync, and port forwarding tunnels.',
       status: 'Ready',
+      actionFailed: 'The request failed.',
 
       tabProfiles: '🖥️ Host Profiles',
 
@@ -141,6 +142,7 @@
       title: '远程开发工作区',
       subtitle: '支持原生 SSH 连接、SFTP 文件访问、3-way 镜像同步与端口转发隧道。',
       status: '就绪',
+      actionFailed: '请求失败。',
 
       tabProfiles: '🖥️ 主机配置',
       tabContainers: '🐳 容器管理',

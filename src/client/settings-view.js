@@ -10,6 +10,7 @@
       const [editing, setEditing] = React.useState(null)
       const [busy, setBusy] = React.useState(null)
       const [testResult, setTestResult] = React.useState(null)
+      const [actionError, setActionError] = React.useState('')
       const [syncMsg, setSyncMsg] = React.useState(null)
       const [tunnelMsg, setTunnelMsg] = React.useState(null)
       const [showPassword, setShowPassword] = React.useState(false)
@@ -24,22 +25,37 @@
       const [browserEntries, setBrowserEntries] = React.useState([])
       const [browserLoading, setBrowserLoading] = React.useState(false)
 
+
+      function actionErrorText(status, data) {
+        if (status >= 200 && status < 300 && data && data.ok !== false) return ''
+        if (data && typeof data.error === 'string' && data.error) return data.error
+        return 'HTTP ' + status
+      }
+
+      const reportAction = async (res) => {
+        let data = null
+        try { data = await res.json() } catch (err) { data = null }
+        const text = actionErrorText(res.status, data)
+        setActionError(text ? ((data && data.error) ? text : t('actionFailed')) : '')
+        return text ? null : data
+      }
+
       const loadState = async () => {
         try {
           const res = await fetch('/dsh-remote-workspace/state')
-          if (res.ok) {
-            const data = await res.json()
-            if (data.ok) {
-              setProfiles(data.profiles || [])
-              setActiveId(data.activeId || null)
-              setTunnels(data.tunnels || [])
-              setAutoSync(Boolean(data.autoSync))
-              if (data.activeId) {
-                fetch(`/dsh-remote-workspace/health?profileId=${data.activeId}`).then(r => r.json()).then(h => { if (h.ok) setHealthData(h.health) }).catch(() => {})
-              }
+          const data = await reportAction(res)
+          if (data && data.ok) {
+            setProfiles(data.profiles || [])
+            setActiveId(data.activeId || null)
+            setTunnels(data.tunnels || [])
+            setAutoSync(Boolean(data.autoSync))
+            if (data.activeId) {
+              fetch(`/dsh-remote-workspace/health?profileId=${data.activeId}`).then(r => r.json()).then(h => { if (h.ok) setHealthData(h.health) }).catch(() => {})
             }
           }
-        } catch (err) { /* best-effort cleanup */ }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
       }
 
       React.useEffect(() => {
@@ -55,13 +71,16 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(profile)
           })
-          if (res.ok) {
+          const data = await reportAction(res)
+          if (data) {
             setEditing(null)
             setBrowserOpen(false)
             setTestResult(null)
             await loadState()
           }
-        } catch (err) { /* best-effort cleanup */ }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
         setBusy(null)
       }
 
@@ -73,11 +92,14 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
           })
-          if (res.ok) {
+          const data = await reportAction(res)
+          if (data) {
             if (editing && editing.id === id) setEditing(null)
             await loadState()
           }
-        } catch (err) { /* best-effort cleanup */ }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
       }
 
       const handleSetActive = async (id) => {
@@ -87,10 +109,11 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
           })
-          if (res.ok) {
-            await loadState()
-          }
-        } catch (err) { /* best-effort cleanup */ }
+          const data = await reportAction(res)
+          if (data) await loadState()
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
       }
 
       const handleTest = async (prof) => {
@@ -124,12 +147,14 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ profile: editing, remotePath: dirPath })
           })
-          const data = await res.json()
-          if (data.ok) {
+          const data = await reportAction(res)
+          if (data && data.ok) {
             setBrowserPath(data.currentPath || dirPath)
             setBrowserEntries(data.entries || [])
           }
-        } catch (err) { /* best-effort cleanup */ }
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
         setBrowserLoading(false)
       }
 
@@ -193,10 +218,11 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tunnelId })
           })
-          if (res.ok) {
-            await loadState()
-          }
-        } catch (err) { /* best-effort cleanup */ }
+          const data = await reportAction(res)
+          if (data) await loadState()
+        } catch (err) {
+          setActionError(err && err.message ? err.message : t('actionFailed'))
+        }
       }
 
       const activeProfile = profiles.find((p) => p.id === activeId)
@@ -225,7 +251,10 @@
               React.createElement('span', { className: `drw-badge ${tunnels.length > 0 ? 'drw-badge-ok' : ''}` }, t('badgeTunnels', { count: tunnels.length }))
             )
           ),
-          React.createElement('div', { className: 'drw-page-sub' }, t('subtitle'))
+          React.createElement('div', { className: 'drw-page-sub' }, t('subtitle')),
+          actionError
+            ? React.createElement('div', { className: 'drw-badge drw-badge-err', role: 'alert' }, actionError)
+            : null
         ),
 
         // Section 1: SSH Profiles Table & Management
@@ -775,9 +804,11 @@
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ enabled: next })
                         })
-                        const d = await res.json()
-                        if (d.ok) setAutoSync(d.autoSync)
-                      } catch (err) { /* best-effort cleanup */ }
+                        const data = await reportAction(res)
+                        if (data && data.ok) setAutoSync(data.autoSync)
+                      } catch (err) {
+                        setActionError(err && err.message ? err.message : t('actionFailed'))
+                      }
                     }
                   },
                   autoSync ? '⚡ Active (ON)' : '⚪ Off'
