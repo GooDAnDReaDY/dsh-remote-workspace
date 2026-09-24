@@ -83,10 +83,15 @@ function setupTestRoutes() {
     setActiveId: async (id) => { activeId = id; }
   };
 
+  let lastTerminalOptions = null;
   const mockSsh = {
     invalidate: () => {},
     disconnect: () => {},
-    testConnection: async () => ({ success: true, latency: 12, os: 'Linux 6.8' })
+    testConnection: async () => ({ success: true, latency: 12, os: 'Linux 6.8' }),
+    createTerminalSession: async (profile, options) => {
+      lastTerminalOptions = options;
+      return { id: 'term_mock_1', profileId: profile.id };
+    }
   };
 
   const mockFs = {
@@ -106,7 +111,7 @@ function setupTestRoutes() {
 
   registerApiRoutes(mockCtx, mockSsh, mockFs, mockSync, mockTunnel, mockStore);
 
-  return { registered, mockStore, mockSsh, mockFs, mockSync, mockTunnel };
+  return { registered, mockStore, mockSsh, mockFs, mockSync, mockTunnel, getLastTerminalOptions: () => lastTerminalOptions };
 }
 
 test('API Routes: GET /dsh-remote-workspace/state returns profiles and activeId', async () => {
@@ -225,4 +230,21 @@ test('API Routes: POST /dsh-remote-workspace/browse calls listDir and returns en
   const res3 = createMockRes();
   await handler(req3, res3);
   assert.equal(res3.getStatusCode(), 404);
+});
+
+test('API Routes: POST /dsh-remote-workspace/terminal/create passes options object', async () => {
+  const { registered, getLastTerminalOptions } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/terminal/create');
+  assert.ok(handler, 'Route /terminal/create should be registered');
+
+  const req = createMockReq('POST', '/dsh-remote-workspace/terminal/create', { profileId: 'p1', cols: 100, rows: 35 });
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 200);
+  const data = res.getBody();
+  assert.equal(data.ok, true);
+  assert.equal(data.sessionId, 'term_mock_1');
+  const passedOpts = getLastTerminalOptions();
+  assert.deepEqual(passedOpts, { cols: 100, rows: 35 });
 });
