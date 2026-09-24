@@ -248,3 +248,45 @@ test('API Routes: POST /dsh-remote-workspace/terminal/create passes options obje
   const passedOpts = getLastTerminalOptions();
   assert.deepEqual(passedOpts, { cols: 100, rows: 35 });
 });
+
+test('API Routes [Issue #25]: rejects cross-site requests even when originating from loopback IP', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  // Case 1: Loopback IP with sec-fetch-site: cross-site
+  const req1 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'evil', host: 'evil.com' }, {
+    'sec-fetch-site': 'cross-site',
+    'host': '127.0.0.1:3000'
+  });
+  req1.socket = { remoteAddress: '127.0.0.1' };
+  const res1 = createMockRes();
+  await handler(req1, res1);
+
+  assert.equal(res1.getStatusCode(), 403);
+  assert.equal(res1.getBody().error, 'Forbidden');
+
+  // Case 2: Loopback IP with cross-origin origin header (e.g. evil.com attacking localhost)
+  const req2 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'evil', host: 'evil.com' }, {
+    'sec-fetch-site': 'cross-site',
+    'origin': 'http://evil.com',
+    'host': '127.0.0.1:3000'
+  });
+  req2.socket = { remoteAddress: '127.0.0.1' };
+  const res2 = createMockRes();
+  await handler(req2, res2);
+
+  assert.equal(res2.getStatusCode(), 403);
+  assert.equal(res2.getBody().error, 'Forbidden');
+
+  // Case 3: Loopback IP with same-origin and matching origin succeeds
+  const req3 = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'good', host: 'good.com' }, {
+    'sec-fetch-site': 'same-origin',
+    'origin': 'http://127.0.0.1:3000',
+    'host': '127.0.0.1:3000'
+  });
+  req3.socket = { remoteAddress: '127.0.0.1' };
+  const res3 = createMockRes();
+  await handler(req3, res3);
+
+  assert.equal(res3.getStatusCode(), 200);
+});
