@@ -16,7 +16,7 @@ test("Updater: isTrustedUpdateRequest rejects cross-origin and untrusted request
   const badReq = {
     headers: {
       "sec-fetch-site": "cross-site",
-      "host": "192.168.1.111:3000"
+      "host": "203.0.113.10:3000"
     },
     socket: { remoteAddress: "8.8.8.8" }
   };
@@ -42,4 +42,15 @@ test("Updater: isTrustedUpdateRequest rejects cross-origin and untrusted request
     socket: { remoteAddress: "127.0.0.1" }
   };
   assert.equal(isTrustedUpdateRequest(goodLocalReq), true);
+
+  const privateLanReq = {
+    headers: {
+      "x-dsh-plugin-update": "1",
+      "sec-fetch-site": "same-origin",
+      "host": "10.1.2.3:3000",
+      "origin": "http://10.1.2.3:3000"
+    },
+    socket: { remoteAddress: "10.1.2.3" }
+  };
+  assert.equal(isTrustedUpdateRequest(privateLanReq), false);
 });
