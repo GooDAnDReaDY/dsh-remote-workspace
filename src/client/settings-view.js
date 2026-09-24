@@ -44,7 +44,12 @@
         return text ? null : data
       }
 
-      const loadState = async () => {
+      const loadInFlight = React.useRef(false)
+
+      const loadState = async (force) => {
+        const hidden = typeof document !== 'undefined' && document.hidden
+        if (!force && (hidden || loadInFlight.current)) return
+        loadInFlight.current = true
         try {
           const res = await fetch('/dsh-remote-workspace/state')
           const data = await reportAction(res)
@@ -62,14 +67,23 @@
           }
         } catch (err) {
           setActionError(err && err.message ? err.message : t('actionFailed'))
+        } finally {
+          loadInFlight.current = false
         }
       }
 
       React.useEffect(() => {
         ensureCss()
-        loadState()
-        const timer = setInterval(loadState, 2000)
-        return () => clearInterval(timer)
+        loadState(true)
+        const timer = setInterval(() => loadState(false), 2000)
+        const onVisible = () => {
+          if (typeof document !== 'undefined' && !document.hidden) loadState(true)
+        }
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
+        return () => {
+          clearInterval(timer)
+          if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+        }
       }, [])
 
 
