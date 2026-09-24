@@ -17,6 +17,7 @@ const sourceFiles = [
   'settings-view.js',
   'updater-section.js',
   'plugin-card.js',
+  'workspace.js',
   'entry.js',
 ]
 

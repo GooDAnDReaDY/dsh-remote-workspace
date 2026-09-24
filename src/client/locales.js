@@ -1,5 +1,13 @@
     const en = {
       title: 'Remote Workspace',
+      navLabel: 'Remote',
+      wsBack: 'Back',
+      wsHosts: 'Hosts',
+      wsTerminal: 'Terminal',
+      wsFiles: 'Files',
+      wsDocker: 'Containers',
+      wsTunnels: 'Tunnels',
+      wsCluster: 'Cluster',
       subtitle: 'Native SSH connections, SFTP file access, 3-way mirror sync, and port forwarding tunnels.',
       status: 'Ready',
       actionFailed: 'The request failed.',
@@ -202,6 +210,14 @@
 
     const zh = {
       title: '远程开发工作区',
+      navLabel: '远程',
+      wsBack: '返回',
+      wsHosts: '主机',
+      wsTerminal: '终端',
+      wsFiles: '文件',
+      wsDocker: '容器',
+      wsTunnels: '隧道',
+      wsCluster: '集群',
       subtitle: '支持原生 SSH 连接、SFTP 文件访问、3-way 镜像同步与端口转发隧道。',
       status: '就绪',
       actionFailed: '请求失败。',
