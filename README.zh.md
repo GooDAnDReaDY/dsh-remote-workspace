@@ -99,6 +99,11 @@ graph LR
   - **密码认证**：原生支持常规账号密码安全登录。
 - **链路诊断探测**：内置 `testConnection` 方法，精确测定毫秒级网络延迟，并自动探测远程主机内核与架构（`uname -srm`）。
 - **心跳保活机制**：主动发送 Keep-Alive 探测包，有效防止各类网络防火墙超时断开空闲连接。
+- **代理命令与跳板**：`proxyCommand` 运行 OpenSSH 风格命令，令牌为 `%h`、`%p`、`%r`、`%n` 和 `%%`。`jumpHosts` 是按顺序排列的配置编号；`jumpHostId` 可以用逗号分隔作为后备。第一跳来自连接池，后续跳板使用独立连接，并在目标会话结束时关闭。
+- **代理与一次性验证码**：`agentPath` 指定 SSH 代理套接字。留空则使用 `SSH_AUTH_SOCK`；在 Windows 上可填写 `pageant`。需要键盘交互时，验证码显示在设置卡片上，60 秒后失效。
+- **空闲连接**：没有隧道、也没有正在执行的命令时，池中的连接在 30 分钟后关闭。下一次命令会重新连接。
+- **输出前重连**：如果连接在命令产生任何输出之前断开，同一命令最多再试 3 次。命令超时、已经开始的输出，以及 `idempotent: false` 不会重试。
+- **独立终端**：终端不共用连接池。关闭终端只关闭这一条 SSH 会话。
 
 ### 2. `RemoteFsService` — 原子高可用 SFTP 文件系统
 - **原子安全写入**：文件首先上传至独立的临时文件（`.tmp.<timestamp>.<hash>`)，上传完成校验后通过原子重命名完成替换，彻底避免因网络异常产生残缺文件。
@@ -122,6 +127,8 @@ graph LR
 - `remote_fs`：执行远程文件的读、写、状态查询、目录列表、创建与删除。
 - `remote_sync`：在本地镜像与远程目录间发起具备冲突感知的同步操作。
 - `remote_tunnel`：开启、关闭或枚举 SSH 端口转发隧道。
+- `remote_hosts`：返回不含密码、私钥和代理命令的主机 Markdown 表。`query` 必填，空字符串列出全部主机。
+- `remote_cluster`：在符合环境、标签和别名的主机上运行同一条命令。`maxWorkers` 默认 8。
 
 ### 6. `client.js` — 原生 DSH 设置面板
 - 深度适配 `settings.plugin.item` 插槽（Key: `dsh-remote-workspace`）。
@@ -131,6 +138,11 @@ graph LR
 - **快捷动作触发**：一键发起定向文件同步并监控隧道运行状态。保存、删除、设为活动、浏览目录或关闭隧道失败时，卡片上的警告会显示服务器返回的错误。连接测试提交的是配置本身，其中包含 `host`。
 - **插件列表名称**：英文为 `Remote Workspace`，中文为 `远程开发工作区`，取自随卡片加载的词典。
 - **更新版本**：该行显示状态接口返回的已安装版本。结果返回前显示“版本未知”。
+- **主机分组**：配置可以填写 `environment`、`tags`、`location` 和 `description`。卡片可按平铺、环境或标签显示，并一次测试整组。
+- **文件传输**：文件页可以上传和下载远程文件，按已传输字节显示进度，并可取消。超过 512MB 的文件会被拒绝。
+- **终端字体**：`terminalFontFamily` 是终端的 CSS 字体族。留空则使用默认等宽字体。
+- **隐藏页面**：浏览器标签隐藏时暂停状态轮询，回到页面后立即刷新。
+- **侧栏工作区**：左侧导航的“远程”按钮在中央区域打开主机、终端、文件、容器、隧道和集群。返回聊天只是隐藏该区域，终端内容保留。
 
 ---
 
@@ -189,6 +201,15 @@ dsh-remote-workspace:
 | `profile.password` | `string` | `""` | 密码认证模式下的登录密码。 |
 | `profile.remoteWorkspace` | `string` | `""` | 远程服务器上的项目工作区根目录。 |
 | `profile.localMirrorPath` | `string` | `""` | 对应远程项目的本地镜像工作目录。 |
+| `profile.agentPath` | `string` | `""` | SSH 代理套接字。留空使用 `SSH_AUTH_SOCK`。 |
+| `profile.proxyCommand` | `string` | `""` | OpenSSH ProxyCommand。令牌：`%h` `%p` `%r` `%n`。 |
+| `profile.jumpHosts` | `string[]` | `[]` | 跳板配置编号，第一台为入口。 |
+| `profile.jumpHostId` | `string` | `""` | `jumpHosts` 为空时的逗号分隔跳板编号。 |
+| `profile.environment` | `string` | `""` | 分组和集群过滤，忽略大小写。 |
+| `profile.tags` | `string[]` | `[]` | 标签。集群过滤要求每个标签都匹配。 |
+| `profile.location` | `string` | `""` | 位置说明。 |
+| `profile.description` | `string` | `""` | 备注。 |
+| `terminalFontFamily` | `string` | `""` | 终端 CSS 字体族。留空使用默认等宽字体。 |
 
 ---
 
@@ -227,6 +248,23 @@ dsh-remote-workspace:
   - `tunnelId` (`string`，停止时必填)：需要关闭的隧道 ID。
 - **返回数据**：`{ tunnelId, localPort, remotePort }` 或隧道清单 `{ tunnels: [...] }`。
 
+### `remote_hosts`
+向模型返回不含秘密的主机表。
+- **输入参数**：
+  - `query` (`string`，必填)：按名称、主机或编号匹配。空字符串列出全部。
+- **返回数据**：Markdown 表。密码、私钥、密钥路径、口令、代理套接字和代理命令不会出现。
+
+### `remote_cluster`
+在筛选后的主机上运行同一条命令。
+- **输入参数**：
+  - `command` (`string`，必填)：Shell 命令。
+  - `environment` (`string`，可选)：精确的环境名。
+  - `tags` (`string`，可选)：逗号分隔的标签，必须全部匹配。
+  - `aliases` (`string`，可选)：逗号分隔的配置编号或名称。
+  - `maxWorkers` (`number`，可选)：并行数，默认 8。
+- **返回数据**：每台主机一行，包含成功与否、退出码、耗时、标准输出、标准错误和错误。
+- **限制**：一台主机连接失败只影响自己的结果行。
+
 ---
 
 ## 🌐 HTTP API 接口列表
@@ -242,6 +280,13 @@ dsh-remote-workspace:
 | `POST` | `/dsh-remote-workspace/test` | 测试 SSH 连通性、延迟与系统信息。 | 主机配置 JSON |
 | `POST` | `/dsh-remote-workspace/browse` | 获取指定远程路径下的子目录列表（供选择器使用）。 | `{ profile: object, path: string }` |
 | `POST` | `/dsh-remote-workspace/sync` | 发起手动目录镜像同步。 | `{ direction: "pull" \| "push", dryRun?: boolean, force?: boolean }` |
+| `POST` | `/dsh-remote-workspace/profiles/import-ssh-config` | 导入 `~/.ssh/config` 或提交的配置文本。 | `{ content?: string }` |
+| `POST` | `/dsh-remote-workspace/profiles/test-group` | 测试提交的已保存配置编号。 | `{ ids: string[] }` |
+| `POST` | `/dsh-remote-workspace/cluster` | 在筛选后的已保存主机上运行命令。 | `{ command, environment?, tags?, aliases?, maxWorkers? }` |
+| `GET` | `/dsh-remote-workspace/file/download` | 流式下载远程文件。查询参数：`profileId`、`filePath`。 | — |
+| `POST` | `/dsh-remote-workspace/file/upload` | 上传原始文件。查询参数：`profileId`、`filePath`。 | 文件字节 |
+| `POST` | `/dsh-remote-workspace/terminal/font` | 保存终端字体。 | `{ fontFamily: string }` |
+| `POST` | `/dsh-remote-workspace/auth/keyboard` | 提交键盘交互验证码。 | `{ id, answers }` |
 
 ---
 
