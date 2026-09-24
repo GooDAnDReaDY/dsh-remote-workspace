@@ -168,10 +168,19 @@
                       'button',
                       {
                         type: 'button',
-                        className: `drw-segmented-item ${editing.authType !== 'password' ? 'drw-segmented-item-active' : ''}`,
+                        className: `drw-segmented-item ${editing.authType !== 'password' && editing.authType !== 'agent' ? 'drw-segmented-item-active' : ''}`,
                         onClick: () => setEditing({ ...editing, authType: 'key' })
                       },
                       '🔑 ' + t('fAuthKey')
+                    ),
+                    React.createElement(
+                      'button',
+                      {
+                        type: 'button',
+                        className: `drw-segmented-item ${editing.authType === 'agent' ? 'drw-segmented-item-active' : ''}`,
+                        onClick: () => setEditing({ ...editing, authType: 'agent' })
+                      },
+                      t('fAuthAgent')
                     ),
                     React.createElement(
                       'button',
@@ -186,7 +195,19 @@
                 ),
 
                 // Conditional Auth Inputs
-                editing.authType === 'password'
+                editing.authType === 'agent'
+                  ? React.createElement(
+                      'div',
+                      { className: 'drw-field' },
+                      React.createElement('span', { className: 'drw-label' }, t('fAgentPath')),
+                      React.createElement('input', {
+                        className: 'drw-input',
+                        placeholder: t('fAgentPathHint'),
+                        value: editing.agentPath || '',
+                        onChange: (e) => setEditing({ ...editing, agentPath: e.target.value })
+                      })
+                    )
+                  : editing.authType === 'password'
                   ? React.createElement(
                       'div',
                       { className: 'drw-field' },
@@ -454,7 +475,7 @@
                         React.createElement(
                           'span',
                           { className: 'drw-badge', style: { marginLeft: '8px' } },
-                          p.authType === 'password' ? '🔒 pwd' : '🔑 key'
+                          p.authType === 'password' ? '🔒 ' + t('fAuthPassShort') : p.authType === 'agent' ? t('fAuthAgentShort') : '🔑 ' + t('fAuthKeyShort')
                         ),
                         isAct
                           ? React.createElement('span', { className: 'drw-badge drw-badge-ok', style: { marginLeft: '6px' } }, t('activeBadge'))
