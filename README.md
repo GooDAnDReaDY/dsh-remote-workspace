@@ -99,6 +99,11 @@ graph LR
   - **Password Authentication**: Direct secure password authentication.
 - **Diagnostic Health Probing**: Built-in `testConnection` executes latency measurements (ping in milliseconds) and detects remote OS architecture (`uname -srm`).
 - **Resilience**: Heartbeat keep-alive packets prevent timeout disconnects from aggressive firewalls.
+- **Proxy and jump hosts**: `proxyCommand` runs an OpenSSH-style command. Tokens are `%h`, `%p`, `%r`, `%n`, and `%%`. `jumpHosts` is an ordered list of profile ids. A comma-separated `jumpHostId` is the fallback. The first bastion comes from the pool. Each later bastion has its own connection, released when the target session ends.
+- **Agent and one-time codes**: `agentPath` selects an agent socket. An empty value uses `SSH_AUTH_SOCK`, or Pageant on Windows when that is the configured path. A keyboard-interactive server shows its prompt on the card. The prompt expires after 60 seconds.
+- **Idle pool**: a pooled connection with no tunnel and no running command closes after 30 minutes. The next command opens it again.
+- **Reconnect before output**: if the connection drops before the command prints anything, the command runs again, up to three times. A command timeout, output that already started, or `idempotent: false` is not repeated.
+- **Separate terminal session**: the terminal does not share the pooled connection. Closing the terminal closes only that SSH session.
 
 ### 2. `RemoteFsService` — Resilient SFTP Operations
 - **Atomic File Writing**: Writes content to an ephemeral temporary file (`.tmp.<timestamp>.<hash>`) and renames it atomically upon complete upload, preventing partial or corrupted files.
@@ -122,6 +127,8 @@ Four orthogonal, high-leverage tools exposed directly to LLM agents:
 - `remote_fs`: Read, write, inspect, list, create directories, or delete files on the remote filesystem.
 - `remote_sync`: Synchronize files between the local mirror and remote server with conflict awareness and dry-run mode.
 - `remote_tunnel`: Start, stop, or list SSH port-forwarding tunnels.
+- `remote_hosts`: Return a compact markdown table of configured hosts. Secrets, private keys, and proxy commands are omitted. `query` is required; an empty query lists every host.
+- `remote_cluster`: Run one command on every host that matches an environment, every requested tag, and an optional alias list. `maxWorkers` defaults to 8.
 
 ### 6. `client.js` — Native DSH Settings Card UI
 - Designed strictly to DSH UX guidelines and styled after `dsh-clinebot`.
@@ -131,6 +138,11 @@ Four orthogonal, high-leverage tools exposed directly to LLM agents:
 - **Action Triggers**: Quick buttons for directional synchronization and tunnel monitoring. A failed save, delete, activation, directory browse, or tunnel stop shows the server error in an alert on the card. Test Connection posts the profile fields, including `host`.
 - **Plugin list label**: English `Remote Workspace` or Chinese `远程开发工作区`, taken from the dictionaries already loaded with the card.
 - **Updater version**: the row shows the installed version returned by the status request. Before that response it shows "Version unknown".
+- **Host groups**: profiles can carry `environment`, `tags`, `location`, and `description`. The card can list them flat, by environment, or by tag, and test one group together.
+- **Files**: the Files tab uploads and downloads a remote file. Progress follows the bytes already moved, and Cancel stops the transfer. Files larger than 512MB are refused.
+- **Terminal font**: `terminalFontFamily` is a CSS font family for the terminal. Leave it empty for the default monospace stack.
+- **Hidden tab**: status polling pauses while the browser tab is hidden and refreshes when the tab returns.
+- **Sidebar workspace**: a Remote button in the left navigation opens the center column with Hosts, Terminal, Files, Containers, Tunnels, and Cluster. Switching back to chat hides that column and keeps the open terminal.
 
 ---
 
@@ -189,6 +201,15 @@ dsh-remote-workspace:
 | `profile.password` | `string` | `""` | Password for password-based authentication. |
 | `profile.remoteWorkspace` | `string` | `""` | Base directory of the project on the remote machine. |
 | `profile.localMirrorPath` | `string` | `""` | Local directory for mirror synchronization. |
+| `profile.agentPath` | `string` | `""` | SSH agent socket. Empty uses `SSH_AUTH_SOCK`. | 
+| `profile.proxyCommand` | `string` | `""` | OpenSSH ProxyCommand. Tokens: `%h` `%p` `%r` `%n`. | 
+| `profile.jumpHosts` | `string[]` | `[]` | Bastion profile ids, first hop first. | 
+| `profile.jumpHostId` | `string` | `""` | Comma-separated bastion ids when `jumpHosts` is empty. | 
+| `profile.environment` | `string` | `""` | Group and cluster filter, compared case-insensitively. | 
+| `profile.tags` | `string[]` | `[]` | Labels. A cluster filter requires every tag. | 
+| `profile.location` | `string` | `""` | Free-form place label. | 
+| `profile.description` | `string` | `""` | Free-form note. | 
+| `terminalFontFamily` | `string` | `""` | Terminal CSS font family. Empty keeps the default monospace stack. |
 
 ---
 
@@ -227,6 +248,23 @@ Manages SSH local port forwarding tunnels.
   - `tunnelId` (`string`, optional): Identifier of the tunnel to terminate (for `"stop"`).
 - **Returns**: `{ tunnelId, localPort, remotePort }` or `{ tunnels: [...] }` or `{ success: boolean }`.
 
+### `remote_hosts`
+Lists configured hosts for the model without secrets.
+- **Parameters**:
+  - `query` (`string`, required): Case-insensitive match against name, host, or id. An empty string lists every host.
+- **Returns**: A markdown table. Password, private key, key path, passphrase, agent socket, and proxy command are omitted.
+
+### `remote_cluster`
+Runs one shell command on a filtered set of hosts.
+- **Parameters**:
+  - `command` (`string`, required): Shell command.
+  - `environment` (`string`, optional): Exact environment name.
+  - `tags` (`string`, optional): Comma-separated tags. Every tag must match.
+  - `aliases` (`string`, optional): Comma-separated profile ids or names.
+  - `maxWorkers` (`number`, optional): Parallel connections. Default 8.
+- **Returns**: One row per host with success, exit code, duration, stdout, stderr, and error.
+- **Limit**: A host that fails to connect is reported on its own row. Other hosts still run.
+
 ---
 
 ## 🌐 HTTP API Routes Reference
@@ -242,6 +280,13 @@ All endpoints are hosted under `/dsh-remote-workspace`:
 | `POST` | `/dsh-remote-workspace/test` | Test SSH connectivity and latency. | Profile JSON object |
 | `POST` | `/dsh-remote-workspace/browse` | List directory contents for remote browser modal. | `{ profile: object, path: string }` |
 | `POST` | `/dsh-remote-workspace/sync` | Trigger manual pull or push synchronization. | `{ direction: "pull" \| "push", dryRun?: boolean, force?: boolean }` |
+| `POST` | `/dsh-remote-workspace/profiles/import-ssh-config` | Import `~/.ssh/config`, or the posted config text. | `{ content?: string }` |
+| `POST` | `/dsh-remote-workspace/profiles/test-group` | Test the stored profiles whose ids are posted. | `{ ids: string[] }` |
+| `POST` | `/dsh-remote-workspace/cluster` | Run one command on the filtered stored profiles. | `{ command, environment?, tags?, aliases?, maxWorkers? }` |
+| `GET` | `/dsh-remote-workspace/file/download` | Stream a remote file. Query: `profileId`, `filePath`. | — |
+| `POST` | `/dsh-remote-workspace/file/upload` | Upload a raw file body. Query: `profileId`, `filePath`. | file bytes |
+| `POST` | `/dsh-remote-workspace/terminal/font` | Save the terminal font family. | `{ fontFamily: string }` |
+| `POST` | `/dsh-remote-workspace/auth/keyboard` | Submit a keyboard-interactive code. | `{ id, answers }` |
 
 ---
 
