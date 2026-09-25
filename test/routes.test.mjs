@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerApiRoutes } from '../lib/routes.js';
+import { registerApiRoutes, readBody, MAX_BODY_BYTES } from '../lib/routes.js';
 
 function createMockReq(method, path, body = null, headers = {}, remoteAddress = '127.0.0.1') {
   const listeners = {};
+  let destroyed = false;
   const req = {
     method,
     url: path,
@@ -13,15 +14,28 @@ function createMockReq(method, path, body = null, headers = {}, remoteAddress = 
       listeners[event] = cb;
       if (event === 'end') {
         process.nextTick(() => {
-          if (body !== null) {
+          if (destroyed) return;
+          if (body !== null && listeners['data']) {
             const str = typeof body === 'string' ? body : JSON.stringify(body);
-            if (listeners['data']) listeners['data'](Buffer.from(str));
+            listeners['data'](Buffer.from(str));
           }
-          cb();
+          if (!destroyed && listeners['end']) cb();
         });
       }
     },
-    destroy() {}
+    removeListener(event, cb) {
+      if (listeners[event] === cb) delete listeners[event];
+    },
+    off(event, cb) {
+      if (listeners[event] === cb) delete listeners[event];
+    },
+    destroy() {
+      destroyed = true;
+      delete listeners['data'];
+      delete listeners['end'];
+    },
+    isDestroyed() { return destroyed; },
+    getListeners() { return listeners; }
   };
   return req;
 }
@@ -600,4 +614,108 @@ test('API Routes [Issue #72]: returns 401 when connection rejection indicates au
 
   assert.equal(res.getStatusCode(), 401);
   assert.equal(res.getBody().error, 'DSH browser authentication is required');
+});
+
+test('API Routes [Issue #73]: oversized Content-Length is rejected with 413 before reading body', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  const req = createMockReq('POST', '/dsh-remote-workspace/profiles/save', null, {
+    'content-length': String(10 * 1024 * 1024)
+  });
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 413);
+  assert.equal(res.getBody().error, 'Payload too large');
+  assert.equal(req.isDestroyed(), true);
+});
+
+test('API Routes [Issue #73]: chunked body after cap receives 413, detaches listener and stops accumulating', async () => {
+  const listeners = {};
+  let destroyed = false;
+  const req = {
+    headers: {},
+    on(event, cb) {
+      listeners[event] = cb;
+    },
+    removeListener(event, cb) {
+      if (listeners[event] === cb) delete listeners[event];
+    },
+    destroy() {
+      destroyed = true;
+    }
+  };
+
+  const readPromise = readBody(req, 100); // 100 bytes cap
+
+  // First chunk under cap
+  listeners['data'](Buffer.from('a'.repeat(60)));
+  assert.ok(listeners['data'], 'Listener must still be attached after first chunk');
+
+  // Second chunk exceeds cap (60 + 60 = 120 > 100)
+  listeners['data'](Buffer.from('b'.repeat(60)));
+
+  await assert.rejects(async () => {
+    await readPromise;
+  }, (err) => {
+    assert.equal(err.statusCode, 413);
+    assert.equal(err.message, 'Payload too large');
+    return true;
+  });
+
+  assert.equal(destroyed, true, 'Request must be destroyed on exceeding cap');
+  assert.equal(listeners['data'], undefined, 'Data listener must be removed after cap violation');
+});
+
+test('API Routes [Issue #73]: all JSON routes reject oversized Content-Length with 413', async () => {
+  const { registered } = setupTestRoutes();
+
+  const jsonRoutes = [
+    { path: '/dsh-remote-workspace/profiles/save', method: 'POST' },
+    { path: '/dsh-remote-workspace/terminal/create', method: 'POST' },
+    { path: '/dsh-remote-workspace/file/view', method: 'POST' },
+    { path: '/dsh-remote-workspace/file/save', method: 'POST' },
+    { path: '/dsh-remote-workspace/env/save', method: 'POST' },
+    { path: '/dsh-remote-workspace/docker/action', method: 'POST' },
+    { path: '/dsh-remote-workspace/sync', method: 'POST' },
+    { path: '/dsh-remote-workspace/tunnels/start', method: 'POST' }
+  ];
+
+  for (const r of jsonRoutes) {
+    const handler = registered.get(r.path);
+    assert.ok(handler, `Route handler for ${r.path} must exist`);
+
+    const req = createMockReq(r.method, r.path, null, {
+      'content-length': String(10 * 1024 * 1024)
+    });
+    const res = createMockRes();
+    await handler(req, res);
+
+    assert.equal(res.getStatusCode(), 413, `${r.path} must return 413 for oversized Content-Length`);
+    assert.equal(res.getBody().error, 'Payload too large');
+    assert.equal(req.isDestroyed(), true);
+  }
+});
+
+test('API Routes [Issue #73]: legitimate maximum 2MB file-save body passes', async () => {
+  const { registered, getCounters } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/file/save');
+
+  // Create a 2MB content string
+  const largeContent = 'export const x = ' + '1234567890'.repeat(200_000); // ~2MB
+  const req = createMockReq('POST', '/dsh-remote-workspace/file/save', {
+    profileId: 'p1',
+    filePath: '/var/www/app.js',
+    content: largeContent
+  }, {
+    'content-length': String(largeContent.length + 100)
+  });
+
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 200);
+  assert.equal(res.getBody().ok, true);
+  assert.equal(getCounters().fileSaved, 1, 'File must be saved successfully');
 });
