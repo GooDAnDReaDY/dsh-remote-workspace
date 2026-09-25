@@ -73,6 +73,9 @@ test("Core & Routes: saveProfile fails with 500 when settingsApi.replace fails",
               return () => {};
             }
           },
+          connection: {
+            requestRejection: () => undefined
+          },
           effect: (fn) => fn()
         });
       }

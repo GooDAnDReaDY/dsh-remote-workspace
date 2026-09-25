@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerApiRoutes } from '../lib/routes.js';
 
-function createMockReq(method, path, body = null, headers = {}) {
+function createMockReq(method, path, body = null, headers = {}, remoteAddress = '127.0.0.1') {
   const listeners = {};
   const req = {
     method,
     url: path,
     headers: { 'sec-fetch-site': 'same-origin', ...headers },
+    socket: { remoteAddress },
     on(event, cb) {
       listeners[event] = cb;
       if (event === 'end') {
@@ -43,7 +44,7 @@ function createMockRes() {
   };
 }
 
-function setupTestRoutes() {
+function setupTestRoutes(options = {}) {
   const registered = new Map();
   const mockWebServer = {
     register({ path, handler }) {
@@ -51,13 +52,53 @@ function setupTestRoutes() {
     }
   };
 
+  const defaultConnection = {
+    requestRejection(req) {
+      if (req._rejection !== undefined) return req._rejection;
+      const ip = req?.socket?.remoteAddress || '127.0.0.1';
+      const isLoopback = ip === '127.0.0.1' || ip === '::1' || (typeof ip === 'string' && ip.startsWith('127.'));
+      const expectedToken = process.env.DSH_AUTH_TOKEN || process.env.DSH_TOKEN;
+      const rawAuth = req?.headers?.['authorization'];
+      const hasValidToken = expectedToken && typeof rawAuth === 'string' && rawAuth === `Bearer ${expectedToken}`;
+      if (!isLoopback && !hasValidToken) {
+        return 403;
+      }
+      if (req?.headers?.['sec-fetch-site'] === 'cross-site') return 403;
+      const origin = req?.headers?.['origin'];
+      const host = req?.headers?.['host'];
+      if (origin && host) {
+        try {
+          if (new URL(origin).host !== host) return 403;
+        } catch {
+          return 403;
+        }
+      }
+      return undefined;
+    }
+  };
+
+  const connectionService = options.connection !== undefined ? options.connection : defaultConnection;
+
   const mockCtx = {
     inject(deps, cb) {
-      cb({
+      const sctx = {
         webServer: mockWebServer,
-        get(key) { return key === 'webServer' ? mockWebServer : null; },
+        connection: connectionService,
+        reflect: {
+          get(key) {
+            if (key === 'webServer') return mockWebServer;
+            if (key === 'connection') return connectionService;
+            return null;
+          }
+        },
+        get(key) {
+          if (key === 'webServer') return mockWebServer;
+          if (key === 'connection') return connectionService;
+          return null;
+        },
         effect(fn) { fn(); }
-      });
+      };
+      cb(sctx);
     }
   };
 
@@ -84,6 +125,12 @@ function setupTestRoutes() {
   };
 
   let lastTerminalOptions = null;
+  let clusterExecuted = 0;
+  let terminalInputSent = 0;
+  let fileSaved = 0;
+  let envSaved = 0;
+  let dockerActionCount = 0;
+
   const mockSsh = {
     invalidate: () => {},
     disconnect: () => {},
@@ -91,11 +138,28 @@ function setupTestRoutes() {
     createTerminalSession: async (profile, options) => {
       lastTerminalOptions = options;
       return { id: 'term_mock_1', profileId: profile.id };
+    },
+    exec: async () => {
+      clusterExecuted += 1;
+      return { stdout: '', stderr: '', code: 0 };
+    },
+    executeCluster: async () => {
+      clusterExecuted += 1;
+      return [];
+    },
+    sendTerminalInput: async () => {
+      terminalInputSent += 1;
+      return true;
     }
   };
 
   const mockFs = {
-    listDir: async () => [{ filename: 'src', isDirectory: true, isFile: false }]
+    listDir: async () => [{ filename: 'src', isDirectory: true, isFile: false }],
+    stat: async () => ({ isFile: true, size: 100 }),
+    readFile: async () => Buffer.from('hello'),
+    writeFile: async () => {
+      fileSaved += 1;
+    }
   };
 
   const mockSync = {
@@ -109,9 +173,70 @@ function setupTestRoutes() {
     stopTunnel: (_id) => true
   };
 
-  registerApiRoutes(mockCtx, mockSsh, mockFs, mockSync, mockTunnel, mockStore);
+  const mockDocker = {
+    executeAction: async () => {
+      dockerActionCount += 1;
+      return { success: true };
+    },
+    listContainers: async () => [],
+    getLogs: async () => ''
+  };
 
-  return { registered, mockStore, mockSsh, mockFs, mockSync, mockTunnel, getLastTerminalOptions: () => lastTerminalOptions };
+  const mockHealth = {
+    getHealth: async () => ({ ok: true })
+  };
+
+  const mockWatcher = {
+    toggle: async () => ({ active: true }),
+    getStatus: () => ({ active: false })
+  };
+
+  const mockDiagnose = {
+    runDiagnose: async () => ({ ok: true })
+  };
+
+  const mockEnv = {
+    getRemoteEnv: async () => ({ content: '' }),
+    saveRemoteEnv: async () => {
+      envSaved += 1;
+      return { success: true };
+    }
+  };
+
+  const mockTarSync = {};
+  const mockAlert = {
+    getStatus: () => ({ active: false }),
+    getAlerts: () => []
+  };
+
+  registerApiRoutes(
+    mockCtx,
+    mockSsh,
+    mockFs,
+    mockSync,
+    mockTunnel,
+    mockStore,
+    mockDocker,
+    mockHealth,
+    mockWatcher,
+    mockDiagnose,
+    mockEnv,
+    mockTarSync,
+    mockAlert
+  );
+
+  return {
+    registered,
+    mockStore,
+    mockSsh,
+    mockFs,
+    mockSync,
+    mockTunnel,
+    mockDocker,
+    mockEnv,
+    getLastTerminalOptions: () => lastTerminalOptions,
+    getCounters: () => ({ clusterExecuted, terminalInputSent, fileSaved, envSaved, dockerActionCount })
+  };
 }
 
 test('API Routes: GET /dsh-remote-workspace/state returns profiles and activeId', async () => {
@@ -393,4 +518,86 @@ test('API Routes [Issue #31]: rejects untrusted GET requests across all 5 sensit
   const prof = data.profiles[0];
   assert.equal(prof.password, '••••••••', 'Password must be masked');
   assert.equal(prof.privateKey, '••••••••', 'PrivateKey must be masked');
+});
+
+test('API Routes [Issue #72]: non-loopback client with forged Origin/Sec-Fetch/cookie/Bearer gets 403', async () => {
+  const { registered } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/profiles/save');
+
+  const forgedReq = createMockReq('POST', '/dsh-remote-workspace/profiles/save', { id: 'p_evil', host: 'evil.host' }, {
+    'sec-fetch-site': 'same-origin',
+    'origin': 'http://127.0.0.1:3000',
+    'host': '127.0.0.1:3000',
+    'cookie': 'dsh_token=forged; token=forged',
+    'authorization': 'Bearer forged-token'
+  }, '203.0.113.50');
+
+  const res = createMockRes();
+  await handler(forgedReq, res);
+
+  assert.equal(res.getStatusCode(), 403);
+  assert.equal(res.getBody().error, 'Forbidden');
+});
+
+test('API Routes [Issue #72]: /cluster, /terminal/input, /file/save, /env/save, /docker/action do not invoke services when rejected', async () => {
+  const { registered, getCounters } = setupTestRoutes();
+
+  const endpoints = [
+    { path: '/dsh-remote-workspace/cluster', method: 'POST', body: { command: 'reboot', profileIds: ['p1'] } },
+    { path: '/dsh-remote-workspace/terminal/input', method: 'POST', body: { sessionId: 'term1', data: 'rm -rf /' } },
+    { path: '/dsh-remote-workspace/file/save', method: 'POST', body: { profileId: 'p1', filePath: '/etc/passwd', content: 'evil' } },
+    { path: '/dsh-remote-workspace/env/save', method: 'POST', body: { profileId: 'p1', remotePath: '/.env', content: 'SECRET=evil' } },
+    { path: '/dsh-remote-workspace/docker/action', method: 'POST', body: { profileId: 'p1', containerId: 'c1', action: 'stop' } }
+  ];
+
+  for (const ep of endpoints) {
+    const handler = registered.get(ep.path);
+    assert.ok(handler, `Handler for ${ep.path} must exist`);
+
+    const unauthReq = createMockReq(ep.method, ep.path, ep.body, {
+      'sec-fetch-site': 'same-origin',
+      'origin': 'http://127.0.0.1:3000',
+      'host': '127.0.0.1:3000'
+    }, '203.0.113.50');
+
+    const res = createMockRes();
+    await handler(unauthReq, res);
+
+    assert.equal(res.getStatusCode(), 403, `${ep.path} must be rejected with 403`);
+  }
+
+  const counters = getCounters();
+  assert.equal(counters.clusterExecuted, 0, 'cluster command must not execute on rejected request');
+  assert.equal(counters.terminalInputSent, 0, 'terminal input must not be sent on rejected request');
+  assert.equal(counters.fileSaved, 0, 'file must not be saved on rejected request');
+  assert.equal(counters.envSaved, 0, 'env must not be saved on rejected request');
+  assert.equal(counters.dockerActionCount, 0, 'docker action must not run on rejected request');
+});
+
+test('API Routes [Issue #72]: fails closed with 503 when connection service is unavailable', async () => {
+  const { registered } = setupTestRoutes({ connection: null });
+  const handler = registered.get('/dsh-remote-workspace/state');
+
+  const req = createMockReq('GET', '/dsh-remote-workspace/state');
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 503);
+  assert.equal(res.getBody().error, 'DSH browser authentication is unavailable');
+});
+
+test('API Routes [Issue #72]: returns 401 when connection rejection indicates authentication required', async () => {
+  const { registered } = setupTestRoutes({
+    connection: {
+      requestRejection: () => 401
+    }
+  });
+  const handler = registered.get('/dsh-remote-workspace/state');
+
+  const req = createMockReq('GET', '/dsh-remote-workspace/state');
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 401);
+  assert.equal(res.getBody().error, 'DSH browser authentication is required');
 });

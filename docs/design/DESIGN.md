@@ -71,7 +71,12 @@ emote_tunnel: создание/остановка/листинг туннеле�
    - Форма создания нового туннеля (Local Port, Remote Port, кнопка «Открыть туннель»).
 
 ## Security & Reliability
-- Защита всех мутирующих эндпоинтов проверкой isTrustedSettingsRequest(req) (защита от cross-site атак).
+- Аутентификация всех API-маршрутов через `authorizeRequest(sctx, req, res)` на базе session-aware сервиса `connection.requestRejection(req)` установленного DSH:
+  - Fails closed (HTTP 503) при недоступности сервиса `connection`.
+  - Отклоняет неавторизованные сетевые и LAN/reverse proxy вызовы (HTTP 401/403) до передачи управления сервисам (SSH, Docker, Vault, FS, Env).
+  - Защищает от поддельных заголовков `Sec-Fetch-Site: same-origin`, `Origin`, недействительных Bearer-токенов и cookie со стороны non-loopback клиентов.
+  - Легитимная сессия веб-интерфейса DSH сохраняет полный доступ ко всем операциям управления удалёнными хостами.
+- Вспомогательная проверка `isTrustedSettingsRequest(req)` строго валидирует loopback-адреса и токены `DSH_AUTH_TOKEN`, не допуская обхода по изолированному заголовку `Sec-Fetch-Site`.
 - POST обновления плагина принимает только loopback и same-origin. Адрес частной сети сам по себе установку не разрешает.
 - Безопасное чтение Cordis сервисов через .get() с fallback.
 - Изоляция жизненного цикла стримов в TunnelService (прослушивание сокетных и потоковых ошибок).
