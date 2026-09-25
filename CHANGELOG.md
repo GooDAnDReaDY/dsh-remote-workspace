@@ -2,6 +2,13 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.10
+
+### Security & Fixed
+- **Session-aware connection authentication**: all API routes are guarded by `authorizeRequest()` using DSH `connection.requestRejection(req)`, failing closed (503) if connection is unavailable and rejecting non-loopback clients with forged Origin/Sec-Fetch headers (403/401) before calling sensitive services. (Refs: #72)
+- **Bounded body reader**: `readBody()` checks `Content-Length` upfront, enforces a 5 MiB ceiling, and immediately stops accumulating chunks and removes listeners upon cap violation with HTTP 413, preventing memory exhaustion and OOM. (Refs: #73)
+- **Timer lifecycle cleanup**: `clearInterval(idleTimer)` added to plugin `dispose` cleanup, preventing lingering background interval timers on plugin reload. (Refs: #74)
+
 ## 0.3.9
 
 ### Added
