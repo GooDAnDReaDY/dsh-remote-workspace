@@ -4,6 +4,10 @@
       const t = props.t || (props.locale === 'zh' ? makeT(zh, en) : makeT(en, zh))
 
       const [conn, setConn] = React.useState('loading')
+      const configForm = (props && props.ctx && props.ctx.configForms && typeof props.ctx.configForms.get === 'function')
+        ? props.ctx.configForms.get(NS)
+        : null;
+
 
       React.useEffect(() => {
         ensureCss()

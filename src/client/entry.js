@@ -8,23 +8,20 @@
         }
       }
 
-      if (ctx.slots && typeof ctx.slots.inject === 'function') {
-        // Plugin-list seat (plugins.item) first: the seat the current core
-        // (0.1.6-alpha.2) renders as the plugin's own page with its configuration.
-        // The label getter runs during page render. A locale-service lookup there
-        // crashes the client batch, so the title is read from the dictionaries
-        // already loaded in this bundle. English is the result when the active
-        // language cannot be read.
-        ctx.slots.inject('plugins.item', () =>
-          ctx.slots.register(
+      const registerPluginSlots = (c) => {
+        if (!c.slots || typeof c.slots.inject !== 'function') return;
+
+        // Plugin-list seat (plugins.item) first
+        c.slots.inject('plugins.item', () =>
+          c.slots.register(
             {
               name: 'plugins.item',
               id: ROW_ID,
               order: 60,
               label: () => {
                 try {
-                  const lang = ctx.locale && typeof ctx.locale.getLocale === 'function'
-                    ? ctx.locale.getLocale()
+                  const lang = c.locale && typeof c.locale.getLocale === 'function'
+                    ? c.locale.getLocale()
                     : ''
                   if (typeof lang === 'string' && (lang === 'zh' || lang.indexOf('zh') === 0)) return zh.title
                 } catch (err) {
@@ -33,39 +30,27 @@
                 return en.title
               },
               locale: NS,
-              inject: () => ({ ctx })
+              inject: () => ({ ctx: c })
             },
-            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx }))
+            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
           )
-        )
+        );
 
-        // Row seat and the legacy seat stay as fallbacks.
-        ctx.slots.inject('plugins.row.config', () =>
-          ctx.slots.register(
+        // Row seat (plugins.row.config)
+        c.slots.inject('plugins.row.config', () =>
+          c.slots.register(
             {
               name: 'plugins.row.config',
               key: ROW_CONFIG_KEY,
               locale: NS,
-              inject: () => ({ ctx })
+              inject: () => ({ ctx: c })
             },
-            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx }))
+            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
           )
-        )
+        );
 
-        ctx.slots.inject('settings.plugin.item', () =>
-          ctx.slots.register(
-            {
-              name: 'settings.plugin.item',
-              key: NS,
-              locale: NS,
-              inject: () => ({ ctx })
-            },
-            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx }))
-          )
-        )
-
-        ctx.slots.inject('conversation.session.header.utilities', () =>
-          ctx.slots.register(
+        c.slots.inject('conversation.session.header.utilities', () =>
+          c.slots.register(
             {
               name: 'conversation.session.header.utilities',
               id: '@goodandready/dsh-remote-workspace',
@@ -73,9 +58,24 @@
             },
             (props) => React.createElement(RemoteWorkspaceChip, props)
           )
-        )
+        );
+      };
+
+      if (ctx.inject && typeof ctx.inject === 'function') {
+        ctx.inject(['configForms'], (c) => {
+          const forms = c.configForms;
+          if (forms && typeof forms.whileServed === 'function') {
+            c.effect(() => forms.whileServed([NS], () => {
+              registerPluginSlots(c);
+            }), 'dsh-remote-workspace: plugins card');
+          } else {
+            registerPluginSlots(c);
+          }
+        });
+      } else {
+        registerPluginSlots(ctx);
       }
     }
 
-    module.exports = { apply, inject: ['slots', 'locale'] }
+    module.exports = { apply, inject: ['slots', 'locale', 'configForms'] }
     return module.exports

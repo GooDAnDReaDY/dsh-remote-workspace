@@ -1,10 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
 
-test('Client: registers with __ModuleLoader__ and defines proper slots', () => {
+test('Client: registers with __ModuleLoader__ and defines proper slots via whileServed', () => {
   let loadedModule = null;
   const mockWindow = {
     __ModuleLoader__: {
@@ -49,12 +48,34 @@ test('Client: registers with __ModuleLoader__ and defines proper slots', () => {
   assert.ok(typeof exportsObj.apply === 'function');
   assert.ok(exportsObj.inject.includes('slots'));
   assert.ok(exportsObj.inject.includes('locale'));
+  assert.ok(exportsObj.inject.includes('configForms'));
 
-  // Test apply(ctx)
+  // Test apply(ctx) with configForms and whileServed
   const registeredSlots = [];
   const injectedSlotNames = [];
+  let whileServedCalled = false;
+
   const mockCtx = {
     locale: { register() {} },
+    inject(deps, callback) {
+      if (deps.includes('configForms')) {
+        callback(this);
+      }
+    },
+    effect(fn) {
+      return fn();
+    },
+    configForms: {
+      get(ns) {
+        assert.equal(ns, 'dsh-remote-workspace');
+        return { status: 'ready' };
+      },
+      whileServed(namespaces, callback) {
+        whileServedCalled = true;
+        assert.equal(namespaces && namespaces[0], 'dsh-remote-workspace');
+        return callback();
+      }
+    },
     slots: {
       inject(slotName, callback) {
         injectedSlotNames.push(slotName);
@@ -68,18 +89,14 @@ test('Client: registers with __ModuleLoader__ and defines proper slots', () => {
 
   exportsObj.apply(mockCtx);
 
-  // settings.plugin.item must be injected
-  assert.ok(injectedSlotNames.includes('settings.plugin.item'));
-  const pluginItemSlot = registeredSlots.find((s) => s.options.name === 'settings.plugin.item');
-  assert.ok(pluginItemSlot, 'settings.plugin.item slot registered');
-  assert.equal(pluginItemSlot.options.key, 'dsh-remote-workspace');
-
-  // conversation utility chip must be injected
+  assert.ok(whileServedCalled, 'whileServed should be called for dsh-remote-workspace');
+  assert.ok(injectedSlotNames.includes('plugins.item'));
+  assert.ok(injectedSlotNames.includes('plugins.row.config'));
   assert.ok(injectedSlotNames.includes('conversation.session.header.utilities'));
 
-  // settings.section must NEVER be registered
-  assert.ok(!injectedSlotNames.includes('settings.section'), 'settings.section must not be registered');
-  assert.ok(!registeredSlots.some((s) => s.options.name === 'settings.section'), 'Forbidden settings.section must not be present');
+  // settings.plugin.item must NOT be registered (retired in DSH 0.2.0-rc.1)
+  assert.ok(!injectedSlotNames.includes('settings.plugin.item'), 'settings.plugin.item must be retired');
+  assert.ok(!registeredSlots.some((s) => s.options.name === 'settings.plugin.item'), 'Forbidden settings.plugin.item must not be present');
 });
 
 test('Client: apply registers locale via ctx.effect and supports repeated apply', () => {
@@ -114,14 +131,13 @@ test('Client: apply registers locale via ctx.effect and supports repeated apply'
 
   const exportsObj = loadedModule.factory(mockRequire);
   let effectCalled = false;
-  let unregisterCalled = false;
   let registerCount = 0;
 
   const mockCtx = {
     locale: {
       register(ns, dicts) {
         registerCount++;
-        return () => { unregisterCalled = true; };
+        return () => {};
       }
     },
     effect(fn, label) {
