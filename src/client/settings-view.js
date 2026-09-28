@@ -1,3 +1,9 @@
+function shouldPoll({ hidden = false, inFlight = false } = {}) {
+  if (hidden) return false;
+  if (inFlight) return false;
+  return true;
+}
+
     function SettingsView(props) {
       const [activeTab, setActiveTab] = React.useState('profiles')
       const [healthData, setHealthData] = React.useState(null)
@@ -48,7 +54,7 @@
 
       const loadState = async (force) => {
         const hidden = typeof document !== 'undefined' && document.hidden
-        if (!force && (hidden || loadInFlight.current)) return
+        if (!force && !shouldPoll({ hidden, inFlight: loadInFlight.current })) return
         loadInFlight.current = true
         try {
           const res = await fetch('/dsh-remote-workspace/state')
