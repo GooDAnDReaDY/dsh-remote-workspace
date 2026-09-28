@@ -2,6 +2,20 @@
 
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
+## 0.3.11
+
+### Fixed & Enhanced
+- **DSH 0.2.0-rc.1 volatile Config and configForms support**: Patched Schemastery prototype with volatile markers for Config leaves to prevent persistence race conditions; migrated client to configForms.whileServed(['dsh-remote-workspace'], ...) with backwards-compatible fallback. (Refs: #76)
+- **Env and Diagnose routes signature fix**: Corrected /env/view and /env/save endpoints to call nvService.readEnv(profile, targetPath) and 
+emoteFs.writeFile; updated /diagnose route to correctly supply the profile object. (Refs: #77)
+- **PTY terminal session idle reaper**: Added background idle session sweeper to sweep abandoned PTY sessions and terminate dedicated SSH connections after 10 minutes with zero subscribers. (Refs: #78)
+- **Tunnel socket cleanup and telemetry guard**: Added mutual stream/socket destruction on error or close and guarded single cleanup invocation to prevent telemetry counter drift. (Refs: #79)
+- **Tar sync process and stream error handlers**: Added error listeners to local tar processes and streams in TarSyncService to prevent unhandled exceptions and dangling child processes. (Refs: #80)
+- **Shell argument sanitization**: Hardened remote command invocations by strictly POSIX-quoting paths and coercing numeric parameters (ports, tail line limits) to integers. (Refs: #81)
+- **Binary file integrity in mirror sync pull**: Switched remote file pulls to read raw binary buffers instead of utf-8 strings, eliminating checksum mismatch and binary corruption. (Refs: #82)
+- **Filesystem watcher error handling and push lock**: Added error listener to s.watch against ENOSPC / OS errors and per-profile concurrency lock preventing overlapping pushes. (Refs: #83)
+- **Poll gate and host projection leakage guard**: Wired tab visibility poll gate into client to pause background polling when tab is hidden; added verification tests for secret masking in host projections. (Refs: #84)
+
 ## 0.3.10
 
 ### Security & Fixed

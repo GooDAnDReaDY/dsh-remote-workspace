@@ -300,3 +300,15 @@ MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)
 - **`📥 Import from ~/.ssh/config`**: One-click import of hosts, keys, and ProxyJump configurations directly into the encrypted `.env` vault.
 - **`🗃️ Remote Environment Manager (remote_env)`**: Inspect and atomically modify remote `.env` key-values with password masking and structural preservation.
 - **`📡 Background Anomaly Alerts`**: Proactive monitoring of disk (<10% free), memory (<5%), and restarting Docker containers via Cordis event bus (`remote-workspace/alert`).
+
+
+### 14. DSH 0.2.0-rc.1 Alignment & Reliability Hardening (v0.3.11)
+- **`⚙️ DSH 0.2.0-rc.1 Settings Forms`**: Fully volatile `Config` schema leaves and dynamic `whileServed` client registration matching the DSH 0.2.0-rc.1 settings contract (#76).
+- **`🛠️ Environment & Diagnostics Endpoints`**: Fixed service method bindings for `.env` inspection, atomic variable updating, and host diagnostics (#77).
+- **`⏱️ Terminal Session Reaper`**: Automatic background sweeping of idle and abandoned PTY sessions to prevent remote connection exhaustion (#78).
+- **`🛡️ Tunnel Lifecycle Hardening`**: Mutual socket/stream teardown on network disconnect and accurate telemetry counter tracking (#79).
+- **`📦 Tar Stream Resilience`**: Uncaught exception protection for local `tar` extraction and zombie process termination (#80).
+- **`🔒 Shell Command Sanitization`**: Strict numeric validation and POSIX single-quoted escaping across Docker, diagnostics, and remote filesystem operations (#81).
+- **`💾 Binary Stream Sync`**: Raw buffer hashing in `MirrorSyncService.pull` preventing false conflicts and hash corruption on binary files (#82).
+- **`👀 Watcher Error Recovery`**: Automatic `fs.watch` error recovery (`ENOSPC` handling) and per-profile concurrency locking (#83).
+- **`⚡ Tab Visibility Polling Gate`**: Client-side background poll suppression when browser tab is hidden (#84).
