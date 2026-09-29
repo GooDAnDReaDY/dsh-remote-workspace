@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { apply, Config } from '../lib/index.js';
+import { apply, Config, plainConfig } from '../lib/index.js';
 
 test('Core: apply handles undefined config safely (Fixes Issue #3)', () => {
   const events = [];
@@ -27,9 +27,9 @@ test('Core: apply handles undefined config safely (Fixes Issue #3)', () => {
 });
 
 test('Core: Config schema provides sensible defaults for empty profile fields', () => {
-  const parsed = Config({
+  const parsed = plainConfig(Config({
     profiles: [{ id: 'p1' }]
-  });
+  }));
   assert.equal(parsed.profiles[0].id, 'p1');
   assert.equal(parsed.profiles[0].port, 22);
   assert.equal(parsed.profiles[0].username, 'root');
