@@ -172,3 +172,21 @@ test('AlertService: resolves profile via resolver and executes check (Fixes #92)
   assert.equal(service.enabled, false);
   assert.equal(service.timer, null);
 });
+
+test('EnvService: setEnvVar rejects newlines and invalid variable keys (Fixes #96)', async () => {
+  const service = new EnvService({});
+
+  // 1. Rejects newline in key
+  await assert.rejects(async () => {
+    await service.setEnvVar({}, '.env', 'FOO\nINJECTED_VAR', 'value');
+  }, /Invalid environment variable key/);
+
+  // 2. Rejects equals, spaces, dashes in key
+  await assert.rejects(async () => {
+    await service.setEnvVar({}, '.env', 'BAD=KEY', 'value');
+  }, /Invalid environment variable key/);
+
+  await assert.rejects(async () => {
+    await service.setEnvVar({}, '.env', 'MY-KEY', 'value');
+  }, /Invalid environment variable key/);
+});
