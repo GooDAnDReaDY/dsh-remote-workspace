@@ -19,3 +19,27 @@ test('openProxyCommand runs a process and stops it when the socket closes', asyn
   const signal = await new Promise((resolve) => opened.child.once('exit', (_code, sig) => resolve(sig)));
   assert.ok(signal);
 });
+
+test('validateProxyCommandTemplate & expandProxyCommand: rejects shell injection and quotes tokens (Fixes #97)', () => {
+  const { validateProxyCommandTemplate } = import('../lib/proxy-command.js');
+
+  // 1. Template with shell operators is rejected
+  assert.throws(() => {
+    expandProxyCommand('connect %h; rm -rf /', { host: 'safe.host' });
+  }, /ProxyCommand must not contain shell chaining/);
+
+  assert.throws(() => {
+    expandProxyCommand('nc %h `whoami`', { host: 'safe.host' });
+  }, /ProxyCommand must not contain shell chaining/);
+
+  assert.throws(() => {
+    expandProxyCommand('nc %h $(id)', { host: 'safe.host' });
+  }, /ProxyCommand must not contain shell chaining/);
+
+  // 2. Tokens with shell injection characters are safely quoted
+  const expanded = expandProxyCommand('nc %h %p', {
+    host: 'host.example; rm -rf /',
+    port: 22
+  });
+  assert.equal(expanded, "nc 'host.example; rm -rf /' 22");
+});
