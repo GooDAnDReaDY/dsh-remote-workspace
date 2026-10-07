@@ -230,3 +230,23 @@ test('Tools [Issue #33]: remote_transfer schema and execution validation', async
     await tool.execute({ sourcePath: '/a' });
   }, /missing required property/);
 });
+
+test('Tools: remote_env masks secrets on full read and retrieves specific key (Fixes #103)', async () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+  const tool = tools.get('remote_env');
+  assert.ok(tool);
+
+  // 1. Full read returns masked values and key list without dumping raw secrets
+  const fullRes = await tool.execute({ action: 'read', filePath: '/app/.env' });
+  assert.ok(Array.isArray(fullRes.keys));
+  assert.ok(fullRes.keys.includes('PORT'));
+  assert.ok(!JSON.stringify(fullRes).includes('3000'), 'Full read must not expose unmasked variable values');
+  assert.ok(fullRes.entries.every((e) => !e.value || e.value === '••••••••'));
+
+  // 2. Targeted read with key returns the specific value
+  const keyRes = await tool.execute({ action: 'read', filePath: '/app/.env', key: 'PORT' });
+  assert.equal(keyRes.key, 'PORT');
+  assert.equal(keyRes.exists, true);
+  assert.equal(keyRes.value, '3000');
+});
