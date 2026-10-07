@@ -112,3 +112,19 @@ test('RemoteFsService: list alias calls listDir correctly', async () => {
   assert.equal(entries[1].filename, 'lib');
   assert.equal(entries[1].isDirectory, true);
 });
+
+test('RemoteFsService: readFile rejects with ERR_FILE_TOO_LARGE when exceeding maxBytes (Fixes #99)', async () => {
+  const hugeChunk = Buffer.alloc(1024 * 1024, 'x'); // 1MB chunk
+  const mockSftp = {
+    createReadStream() {
+      return Readable.from([hugeChunk, hugeChunk, hugeChunk]);
+    }
+  };
+  const mockSsh = { async getSftp() { return mockSftp; } };
+  const remoteFs = new RemoteFsService(mockSsh);
+
+  // Set cap to 2MB, provided 3MB -> should reject
+  await assert.rejects(async () => {
+    await remoteFs.readFile({}, '/fake/huge.bin', 'utf8', 2 * 1024 * 1024);
+  }, /ERR_FILE_TOO_LARGE/);
+});
