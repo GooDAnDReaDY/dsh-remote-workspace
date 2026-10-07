@@ -66,3 +66,38 @@ test('Core: apply sets up store and allows profile CRUD operations', async () =>
   assert.ok(mockCtx.remoteSync);
   assert.ok(mockCtx.remoteTunnel);
 });
+
+test('Core: apply unwraps Volatile boxes in config (Fixes #89)', () => {
+  const mockCtx = {
+    inject(deps, cb) {
+      if (deps.includes('settings')) {
+        cb({
+          settings: {
+            register: () => ({ get: () => null, replace: async () => {} })
+          },
+          effect: () => () => {}
+        });
+      }
+    },
+    provide(name, api) {
+      this[name] = api;
+    },
+    on() {},
+    tools: { register() {} },
+    webServer: { register() {} }
+  };
+
+  const volatileBox = (val) => ({ get: () => val });
+  const boxedConfig = {
+    profiles: volatileBox([{ id: 'box1', host: 'remote.test', port: 22 }]),
+    activeProfileId: volatileBox('box1'),
+    autoSyncActive: volatileBox(false),
+    alertMonitoringActive: volatileBox(false),
+    terminalFontFamily: volatileBox('Fira Code')
+  };
+
+  apply(mockCtx, boxedConfig);
+  assert.equal(mockCtx.remoteProfiles.getActive()?.id, 'box1');
+  assert.equal(mockCtx.remoteProfiles.list().length, 1);
+  assert.equal(mockCtx.remoteProfiles.getActiveId(), 'box1');
+});

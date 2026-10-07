@@ -146,3 +146,29 @@ test('TarSyncService & shellQuote: safely quotes shell metacharacters and reject
     await service.pullTar(null, '/remote', '/tmp');
   }, /No profile provided/);
 });
+
+test('AlertService: resolves profile via resolver and executes check (Fixes #92)', async () => {
+  let checkedProfile = null;
+  const mockHealth = {
+    async getHealth(profile) {
+      checkedProfile = profile;
+      return { disk: { percent: 50 }, memory: { percent: 50 } };
+    }
+  };
+  const activeProfile = { id: 'p-resolved', host: 'remote.resolver.test' };
+  const service = new AlertService({ emit() {} }, mockHealth, null, () => activeProfile);
+
+  // Calling check without profile resolves from profileResolver
+  const alerts = await service.check();
+  assert.equal(checkedProfile?.id, 'p-resolved');
+  assert.deepEqual(alerts, []);
+  assert.equal(service.getAlerts().length, 0);
+
+  // Start with interval creates a functioning timer without errors
+  service.start(10000);
+  assert.equal(service.enabled, true);
+  assert.ok(service.timer);
+  service.stop();
+  assert.equal(service.enabled, false);
+  assert.equal(service.timer, null);
+});

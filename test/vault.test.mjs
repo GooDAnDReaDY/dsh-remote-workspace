@@ -59,3 +59,26 @@ test('VaultService: isolated .env storage and hydration', () => {
     try { fs.unlinkSync(tmpEnv); } catch (_) {}
   }
 });
+
+test('VaultService: resolves DSH_HOME and uses honest owner-only permissions status (Fixes #102, #107)', () => {
+  const customHome = path.join(os.tmpdir(), `test-dsh-home-${Date.now()}`);
+  process.env.DSH_HOME = customHome;
+
+  try {
+    const { resolveDshHome } = import('../lib/vault-service.js');
+    const vault = new VaultService();
+    assert.ok(vault.envPath.startsWith(customHome));
+    assert.equal(fs.existsSync(vault.envPath), true);
+
+    const content = fs.readFileSync(vault.envPath, 'utf8');
+    assert.ok(!content.includes('Encrypted'), 'Header must not falsely claim Encrypted');
+    assert.ok(content.includes('Owner-Only Permissions 0600'));
+
+    const status = vault.getPermissionStatus();
+    assert.equal(status.protection, 'owner-only-permissions');
+    assert.equal(status.secure, true);
+  } finally {
+    delete process.env.DSH_HOME;
+    try { fs.rmSync(customHome, { recursive: true, force: true }); } catch (_) {}
+  }
+});
