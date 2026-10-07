@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SshService } from '../lib/ssh-service.js';
@@ -38,4 +39,27 @@ test('SshService: createTerminalSession accepts both options object and position
   assert.equal(passedShellOpts.cols, 110);
   assert.equal(passedShellOpts.rows, 35);
   assert.ok(session2.id.startsWith('term_'));
+});
+
+test('SshService: exec truncates output when exceeding maxBufferSize (Fixes #99)', async () => {
+  const service = new SshService({});
+  const mockConn = {
+    exec(_cmd, _opts, cb) {
+      const emitter = new EventEmitter();
+      emitter.signal = () => {};
+      emitter.close = () => emitter.emit('close', 0);
+      cb(null, emitter);
+      process.nextTick(() => {
+        emitter.emit('data', Buffer.from('A'.repeat(500)));
+        emitter.emit('data', Buffer.from('B'.repeat(1000)));
+        emitter.emit('close', 0);
+      });
+    }
+  };
+  service.getConnection = async () => mockConn;
+
+  const res = await service.exec({ id: 'p1' }, 'generate_infinite', { maxBufferSize: 600 });
+  assert.equal(res.truncated, true);
+  assert.ok(res.stdout.includes('[Output truncated: exceeded max buffer size]'));
+  assert.ok(res.stdout.length <= 700);
 });
