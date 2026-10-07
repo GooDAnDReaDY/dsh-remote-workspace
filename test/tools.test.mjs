@@ -250,3 +250,26 @@ test('Tools: remote_env masks secrets on full read and retrieves specific key (F
   assert.equal(keyRes.exists, true);
   assert.equal(keyRes.value, '3000');
 });
+
+test('Tools: remote_service validates actions and sanitizes shell arguments (Fixes #90)', async () => {
+  let executedCmd = '';
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+  const tool = tools.get('remote_service');
+  assert.ok(tool);
+
+  // 1. Rejects unwhitelisted action
+  await assert.rejects(async () => {
+    await tool.execute({ service: 'nginx', action: 'restart; rm -rf /' });
+  }, /Invalid service action/);
+
+  // 2. Rejects unwhitelisted manager
+  await assert.rejects(async () => {
+    await tool.execute({ service: 'nginx', action: 'status', manager: 'docker' });
+  }, /Invalid service manager/);
+
+  // 3. Posix-quotes dangerous service names against shell expansion
+  const res = await tool.execute({ service: 'app$(whoami)`id`', action: 'restart' });
+  assert.equal(res.exitCode, 0);
+  assert.ok(res.output.includes("'app$(whoami)`id`'"), 'Command must POSIX-quote service name without shell interpolation');
+});
