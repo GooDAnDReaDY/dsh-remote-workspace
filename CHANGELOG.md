@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.15
+
+### Security & Hardening
+- **Shell command injection prevention (#90)**: Validated service action against allowlist and strictly shell-quoted service name, journal lines, and unit arguments in `remote_service`.
+- **Environment variable key validation (#96)**: Added strict regex validation (`^[A-Za-z_][A-Za-z0-9_]*$`) for environment variable keys across routes and services to prevent shell/env injection.
+- **ProxyCommand and bastion safety (#97)**: Validated ProxyCommand template tokens and shell-quoted `%h` / `%p` substitutions to eliminate command injection through SSH proxy configurations.
+- **Buffer caps against memory exhaustion (#99)**: Implemented maximum buffer size caps on exec stream accumulation and file read buffers with early truncation and clean teardown to prevent OOM.
+- **Cross-origin and loopback enforcement (#110)**: Strengthened `isTrustedSettingsRequest` by rejecting untrusted origins and foreign hosts across all settings endpoints.
+
+### Stability & Reliability
+- **Config volatile unwrap (#89)**: Unwrapped incoming volatile boxes in plugin `apply()` entry point, preventing empty profiles and state loss on config reload.
+- **AlertService profile lifecycle (#92)**: Integrated profile resolver and full lifecycle management into `AlertService` to properly start, update, and stop alert polling.
+- **3-way mirror sync conflict resolution (#91)**: Added 3-way hash-based conflict detection comparing local, remote, and baseline states to prevent silent overwrites.
+- **Remote filesystem path containment (#93)**: Confined all `remote_fs` operations strictly to workspace root with path traversal blocking.
+- **Route path traversal defense (#94)**: Added strict path normalization and root containment checks across all HTTP filesystem routes.
+- **SSH config include safety (#95)**: Restricted `Include` directives in SSH config parser to user directory boundaries to prevent arbitrary file reading.
+- **Cache invalidation on write (#98)**: Ensured cache invalidation across file writes, deletes, and remote sync operations.
+- **Terminal session lifecycle (#100)**: Hardened terminal cleanup and session tracking to prevent dangling sockets and connection leaks.
+- **Honest vault permissions status (#102, #107)**: Resolved `$DSH_HOME` path correctly and reported honest owner-only file permissions (0600) instead of misleading encryption labels.
+- **Secret masking in remote env tool (#103)**: Masked sensitive environment values (`••••••••`) during bulk reads while permitting targeted retrieval by specific key.
+- **Clean module exports (#104)**: Cleaned up unused and circular exports across services.
+- **Tool render shape contract (#105)**: Conformed tool render output strictly to `[{ type: "text", text }]` shape per DSH framework contract.
+- **Supply chain protection in updater (#106)**: Preserved pnpm `minimumReleaseAge` supply chain guard during plugin auto-updates.
+- **Canonical theme tokens in UI (#108)**: Replaced non-canonical theme variables in client UI with standard DSH design tokens and proper fallbacks.
+- **Dead import elimination (#109)**: Removed unreferenced imports and dead variables across codebase.
+- **Preflight cleanups (#116)**: Annotated stream and process cleanup catch statements to ensure clean preflight verification.
+
+## 0.3.12
+
+### Fixed
+- **Peer gate on DSH 0.2.0-rc.1** (#58): DSH skips a profile bundle whose `peerDependencies` exclude the running version, so this plugin was absent from the profile with no error in the UI. Every `@deepseek-ai/dsh-*` peer now names both the 0.1.7-rc.2 and 0.2.0-rc.1 lines, because semver does not admit a prerelease of the next minor into a range that does not name it.
+
 Notable changes to `@goodandready/dsh-remote-workspace`.
 
 ## 0.3.11
