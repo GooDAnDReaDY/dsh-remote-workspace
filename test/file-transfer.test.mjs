@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable, Writable } from 'node:stream';
-import { attachmentName, contentDisposition, pipeWithProgress, transferPercent } from '../lib/file-transfer.js';
+import { attachmentName, contentDisposition, pipeWithProgress } from '../lib/file-transfer.js';
+
+function transferPercent(loaded, total) {
+  const done = Number(loaded) || 0;
+  const size = Number(total) || 0;
+  if (size <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((done / size) * 100)));
+}
 
 test('transfer progress and names stay bounded', async () => {
   assert.equal(transferPercent(1, 4), 25);

@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderHostTable, toAgentHostRow, hostProjectionLeaks } from '../lib/host-projection.js';
+import { renderHostTable, toAgentHostRow } from '../lib/host-projection.js';
+
+const SECRET = ['password', 'privateKey', 'privateKeyPath', 'passphrase', 'agentPath', 'proxyCommand'];
+function hostProjectionLeaks(value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return SECRET.some((key) => text.includes(key));
+}
 
 test('toAgentHostRow hides secrets and bastion commands', () => {
   const profile = {

@@ -75,10 +75,10 @@
             null,
             React.createElement('span', { style: { fontWeight: 500 } }, (updateStatus?.currentVersion ? 'v' + updateStatus.currentVersion : t('versionUnknown'))),
             updateStatus?.updateAvailable
-              ? React.createElement('span', { style: { marginLeft: '8px', color: 'var(--dsw-alias-state-warning-text)' } }, '→ v' + updateStatus.latestVersion)
+              ? React.createElement('span', { style: { marginLeft: '8px', color: 'var(--dsw-alias-state-warn-primary, #f59e0b)' } }, '→ v' + updateStatus.latestVersion)
               : null,
             msg
-              ? React.createElement('div', { style: { fontSize: '11px', marginTop: '3px', color: msg.ok ? 'var(--dsw-alias-state-success-text)' : 'var(--dsw-alias-state-error-text)' } }, msg.text)
+              ? React.createElement('div', { style: { fontSize: '11px', marginTop: '3px', color: msg.ok ? 'var(--dsw-alias-state-success-primary, #22c55e)' : 'var(--dsw-alias-state-error-primary, #ef4444)' } }, msg.text)
               : null
           )
         ),

@@ -868,3 +868,29 @@ test('API Routes [Fixes #101]: POST /dsh-remote-workspace/test reports connectio
   assert.equal(body.ok, false);
   assert.match(body.error, /Connection refused/);
 });
+
+test('API Routes [Fixes #110]: authorizeRequest rejects cross-origin requests with HTTP 403 across write endpoints', async () => {
+  const { registered } = setupTestRoutes();
+
+  const writeRoutes = [
+    { path: '/dsh-remote-workspace/file/save', method: 'POST', body: { profileId: 'p1', filePath: '/app.js', content: 'test' } },
+    { path: '/dsh-remote-workspace/env/save', method: 'POST', body: { profileId: 'p1', remotePath: '/app/.env', key: 'A', value: 'B' } },
+    { path: '/dsh-remote-workspace/profiles/save', method: 'POST', body: { id: 'p1', host: '10.0.0.1' } },
+    { path: '/dsh-remote-workspace/profiles/delete', method: 'POST', body: { id: 'p1' } },
+    { path: '/dsh-remote-workspace/sync', method: 'POST', body: { profileId: 'p1', direction: 'pull' } },
+    { path: '/dsh-remote-workspace/docker/action', method: 'POST', body: { profileId: 'p1', action: 'stop', containerId: 'c1' } }
+  ];
+
+  for (const r of writeRoutes) {
+    const handler = registered.get(r.path);
+    assert.ok(handler, `Handler for ${r.path} must exist`);
+
+    // Cross-site request
+    const crossReq = createMockReq(r.method, r.path, r.body, { 'sec-fetch-site': 'cross-site' });
+    const crossRes = createMockRes();
+    await handler(crossReq, crossRes);
+
+    assert.equal(crossRes.getStatusCode(), 403, `${r.path} must return 403 Forbidden for cross-origin`);
+    assert.equal(crossRes.getBody().error, 'Forbidden');
+  }
+});

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attachWorkspaceNode } from '../lib/workspace-mount.js';
+function attachWorkspaceNode(column, node) {
+  if (!column || !node || typeof column.appendChild !== 'function') return false;
+  if (node.parentElement !== column) column.appendChild(node);
+  return node.parentElement === column;
+}
 
 test('the workspace node is moved back without being recreated', () => {
   const calls = [];

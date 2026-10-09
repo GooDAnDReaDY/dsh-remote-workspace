@@ -197,7 +197,7 @@
             '⬆️ Up'
           ),
           React.createElement('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, 'Path:'),
-          React.createElement('span', { style: { fontWeight: 600, color: 'var(--dsw-alias-state-brand-primary)' } }, currentPath)
+          React.createElement('span', { style: { fontWeight: 600, color: 'var(--dsw-alias-brand-primary, var(--dsw-alias-label-primary))' } }, currentPath)
         ),
         React.createElement(
           'div',

@@ -190,7 +190,7 @@
             ? React.createElement(
                 'form',
                 { className: 'drw-term-footer', onSubmit: sendCommand },
-                React.createElement('span', { style: { color: 'var(--dsw-alias-link-primary)', padding: '4px 6px', fontFamily: 'inherit' } }, '$'),
+                React.createElement('span', { style: { color: 'var(--dsw-alias-link, var(--dsw-alias-label-primary))', padding: '4px 6px', fontFamily: 'inherit' } }, '$'),
                 React.createElement('input', {
                   className: 'drw-term-input',
                   type: 'text',
