@@ -273,3 +273,45 @@ test('Tools: remote_service validates actions and sanitizes shell arguments (Fix
   assert.equal(res.exitCode, 0);
   assert.ok(res.output.includes("'app$(whoami)`id`'"), 'Command must POSIX-quote service name without shell interpolation');
 });
+
+test('Tools: remote_fs confines operations to workspace root and blocks path traversal (Fixes #93)', async () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+  const tool = tools.get('remote_fs');
+  assert.ok(tool);
+
+  // 1. Relative path resolves within workspace
+  const relRead = await tool.execute({ action: 'read', path: 'src/index.js' });
+  assert.equal(relRead.content, 'content of /remote/dir/src/index.js');
+
+  // 2. Path outside workspace throws access denied
+  await assert.rejects(async () => {
+    await tool.execute({ action: 'read', path: '/etc/passwd' });
+  }, /outside configured remoteWorkspace/);
+
+  // 3. Directory traversal escaping workspace throws access denied
+  await assert.rejects(async () => {
+    await tool.execute({ action: 'read', path: '../../etc/passwd' });
+  }, /outside configured remoteWorkspace/);
+
+  // 4. Reject removing workspace root directory
+  await assert.rejects(async () => {
+    await tool.execute({ action: 'remove', path: '/remote/dir' });
+  }, /Cannot remove root workspace directory/);
+
+  await assert.rejects(async () => {
+    await tool.execute({ action: 'remove', path: '.' });
+  }, /Cannot remove root workspace directory/);
+
+  // 5. Reject null bytes
+  await assert.rejects(async () => {
+    await tool.execute({ action: 'read', path: 'file\0.txt' });
+  }, /without null bytes/);
+
+  // 6. Reject if remoteWorkspace is missing or empty
+  const noWsTools = setupTools({ id: 'p2', remoteWorkspace: '' });
+  const noWsTool = noWsTools.get('remote_fs');
+  await assert.rejects(async () => {
+    await noWsTool.execute({ action: 'read', path: 'app.js' });
+  }, /Remote workspace is not configured/);
+});

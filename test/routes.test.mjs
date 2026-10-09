@@ -719,3 +719,77 @@ test('API Routes [Issue #73]: legitimate maximum 2MB file-save body passes', asy
   assert.equal(res.getBody().ok, true);
   assert.equal(getCounters().fileSaved, 1, 'File must be saved successfully');
 });
+
+test('API Routes [Fixes #94]: strictly validates filePath and remotePath inputs across file and env endpoints', async () => {
+  const { registered } = setupTestRoutes();
+
+  // 1. /browse rejects path with null bytes
+  const browseHandler = registered.get('/dsh-remote-workspace/browse');
+  const browseReq = createMockReq('POST', '/dsh-remote-workspace/browse', {
+    profileId: 'p1',
+    remotePath: '/var/www\0/evil'
+  });
+  const browseRes = createMockRes();
+  await browseHandler(browseReq, browseRes);
+  assert.equal(browseRes.getStatusCode(), 400);
+  assert.match(browseRes.getBody().error, /null bytes/);
+
+  // 2. /file/view rejects empty filePath and null bytes
+  const viewHandler = registered.get('/dsh-remote-workspace/file/view');
+  const viewReq1 = createMockReq('POST', '/dsh-remote-workspace/file/view', {
+    profileId: 'p1',
+    filePath: ''
+  });
+  const viewRes1 = createMockRes();
+  await viewHandler(viewReq1, viewRes1);
+  assert.equal(viewRes1.getStatusCode(), 400);
+
+  const viewReq2 = createMockReq('POST', '/dsh-remote-workspace/file/view', {
+    profileId: 'p1',
+    filePath: '/var/www/secret\0'
+  });
+  const viewRes2 = createMockRes();
+  await viewHandler(viewReq2, viewRes2);
+  assert.equal(viewRes2.getStatusCode(), 400);
+
+  // 3. /file/save rejects null bytes, control characters, and missing content
+  const saveHandler = registered.get('/dsh-remote-workspace/file/save');
+  const saveReq1 = createMockReq('POST', '/dsh-remote-workspace/file/save', {
+    profileId: 'p1',
+    filePath: '/var/www\x01/app.js',
+    content: 'test'
+  });
+  const saveRes1 = createMockRes();
+  await saveHandler(saveReq1, saveRes1);
+  assert.equal(saveRes1.getStatusCode(), 400);
+
+  const saveReq2 = createMockReq('POST', '/dsh-remote-workspace/file/save', {
+    profileId: 'p1',
+    filePath: '/var/www/app.js'
+    // missing content
+  });
+  const saveRes2 = createMockRes();
+  await saveHandler(saveReq2, saveRes2);
+  assert.equal(saveRes2.getStatusCode(), 400);
+
+  // 4. /env/save rejects non-env target file paths and null bytes
+  const envSaveHandler = registered.get('/dsh-remote-workspace/env/save');
+  const envSaveReq1 = createMockReq('POST', '/dsh-remote-workspace/env/save', {
+    profileId: 'p1',
+    remotePath: '/etc/shadow',
+    content: 'root::0:0:root'
+  });
+  const envSaveRes1 = createMockRes();
+  await envSaveHandler(envSaveReq1, envSaveRes1);
+  assert.equal(envSaveRes1.getStatusCode(), 400);
+  assert.match(envSaveRes1.getBody().error, /environment file/);
+
+  const envSaveReq2 = createMockReq('POST', '/dsh-remote-workspace/env/save', {
+    profileId: 'p1',
+    remotePath: '/app/.env\0',
+    content: 'KEY=val'
+  });
+  const envSaveRes2 = createMockRes();
+  await envSaveHandler(envSaveReq2, envSaveRes2);
+  assert.equal(envSaveRes2.getStatusCode(), 400);
+});

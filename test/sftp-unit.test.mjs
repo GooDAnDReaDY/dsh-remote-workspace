@@ -128,3 +128,37 @@ test('RemoteFsService: readFile rejects with ERR_FILE_TOO_LARGE when exceeding m
     await remoteFs.readFile({}, '/fake/huge.bin', 'utf8', 2 * 1024 * 1024);
   }, /ERR_FILE_TOO_LARGE/);
 });
+
+test('RemoteFsService: invalidateCache precisely invalidates subpath without substring over-invalidation (Fixes #98)', () => {
+  const remoteFs = new RemoteFsService({});
+  const now = Date.now() + 60000;
+
+  // Populate cache with multiple keys
+  remoteFs.cache.set('p1:list:/workspace/src', { data: [], expiresAt: now });
+  remoteFs.cache.set('p1:stat:/workspace/src/app.js', { data: {}, expiresAt: now });
+  remoteFs.cache.set('p1:list:/workspace/src-other', { data: [], expiresAt: now });
+  remoteFs.cache.set('p1:stat:/workspace/other/app.js', { data: {}, expiresAt: now });
+  remoteFs.cache.set('p2:list:/workspace/src', { data: [], expiresAt: now });
+
+  // Invalidate /workspace/src for p1
+  remoteFs.invalidateCache('p1', '/workspace/src');
+
+  // Exact path and child paths must be deleted
+  assert.equal(remoteFs.cache.has('p1:list:/workspace/src'), false);
+  assert.equal(remoteFs.cache.has('p1:stat:/workspace/src/app.js'), false);
+
+  // Substring match prefix like /workspace/src-other must NOT be deleted
+  assert.equal(remoteFs.cache.has('p1:list:/workspace/src-other'), true, 'Must not over-invalidate sibling directories');
+  assert.equal(remoteFs.cache.has('p1:stat:/workspace/other/app.js'), true, 'Must not invalidate other directories');
+  assert.equal(remoteFs.cache.has('p2:list:/workspace/src'), true, 'Must not invalidate other profiles');
+
+  // Full invalidation for p1
+  remoteFs.invalidateCache('p1');
+  assert.equal(remoteFs.cache.has('p1:list:/workspace/src-other'), false);
+  assert.equal(remoteFs.cache.has('p1:stat:/workspace/other/app.js'), false);
+  assert.equal(remoteFs.cache.has('p2:list:/workspace/src'), true);
+
+  // Global invalidation
+  remoteFs.invalidateCache(null);
+  assert.equal(remoteFs.cache.size, 0);
+});

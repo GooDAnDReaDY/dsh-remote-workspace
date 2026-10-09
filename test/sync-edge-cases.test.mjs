@@ -180,3 +180,50 @@ test('MirrorSyncService: deduplicates parent mkdir calls when pushing multiple f
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('MirrorSyncService: push detects 3-way conflicts and prevents silent overwrite without force (Fixes #91)', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-sync-push-conflict-'));
+  const localDir = path.join(tmpDir, 'local');
+  fs.mkdirSync(localDir, { recursive: true });
+
+  const sync = new MirrorSyncService({}, {});
+
+  // Setup snapshot baseline
+  const baseContent = 'initial baseline';
+  const baseline = {
+    'config.json': { hash: sync.computeHash(baseContent) }
+  };
+  fs.writeFileSync(path.join(localDir, '.dsh-sync-snapshot.json'), JSON.stringify(baseline));
+
+  // Local modified
+  fs.writeFileSync(path.join(localDir, 'config.json'), 'local modified version');
+
+  let remoteWriteCalled = false;
+  const mockRemoteFs = {
+    async readFile(_p, _f) {
+      // Remote also modified differently
+      return 'remote modified version';
+    },
+    async mkdir() {},
+    async writeFile() {
+      remoteWriteCalled = true;
+    }
+  };
+
+  const testSync = new MirrorSyncService(mockRemoteFs, {});
+
+  // 1. Push without force detects conflict and does not overwrite
+  const res = await testSync.push({ id: 'p1' }, localDir, '/remote', false, false);
+  assert.equal(res.success, false);
+  assert.equal(res.conflicts.length, 1);
+  assert.equal(res.conflicts[0].path, 'config.json');
+  assert.equal(remoteWriteCalled, false, 'Must not overwrite remote file on conflict without force');
+
+  // 2. Push with force=true bypasses conflict check and writes
+  const forceRes = await testSync.push({ id: 'p1' }, localDir, '/remote', true, false);
+  assert.equal(forceRes.success, true);
+  assert.equal(forceRes.conflicts.length, 0);
+  assert.equal(remoteWriteCalled, true, 'Force push must proceed with write');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
