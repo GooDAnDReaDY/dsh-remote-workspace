@@ -315,3 +315,36 @@ test('Tools: remote_fs confines operations to workspace root and blocks path tra
     await noWsTool.execute({ action: 'read', path: 'app.js' });
   }, /Remote workspace is not configured/);
 });
+
+test('Tools [Fixes #105]: tool render returns [{ type: "text", text }] array per framework contract', () => {
+  const profile = { id: 'p1', remoteWorkspace: '/remote/dir' };
+  const tools = setupTools(profile);
+
+  for (const [name, tool] of tools) {
+    assert.ok(tool.output, `Tool ${name} must define output`);
+    assert.equal(typeof tool.output.render, 'function', `Tool ${name} must have output.render function`);
+
+    // Render with test object
+    const sampleObj = { ok: true, message: 'hello world' };
+    const renderedObj = tool.output.render({}, sampleObj);
+    assert.ok(Array.isArray(renderedObj), `Tool ${name} render must return an array`);
+    assert.equal(renderedObj.length, 1);
+    assert.equal(renderedObj[0].type, 'text');
+    assert.equal(typeof renderedObj[0].text, 'string');
+    assert.equal(renderedObj[0].content, undefined, 'Must not use legacy content property');
+
+    // Render with test string
+    const sampleStr = 'raw text output';
+    const renderedStr = tool.output.render({}, sampleStr);
+    assert.ok(Array.isArray(renderedStr));
+    assert.equal(renderedStr[0].type, 'text');
+    assert.equal(typeof renderedStr[0].text, 'string');
+  }
+
+  // Specifically check remote_hosts table rendering
+  const hostsTool = tools.get('remote_hosts');
+  const hostsRendered = hostsTool.output.render({}, { count: 1, table: '| Host | IP |\n| test | 127.0.0.1 |' });
+  assert.ok(Array.isArray(hostsRendered));
+  assert.equal(hostsRendered[0].type, 'text');
+  assert.ok(hostsRendered[0].text.includes('| Host | IP |'));
+});

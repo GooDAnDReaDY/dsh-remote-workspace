@@ -1,3 +1,4 @@
+import { isTrustedSettingsRequest } from '../lib/routes/helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerApiRoutes, readBody, MAX_BODY_BYTES } from '../lib/routes.js';
@@ -792,4 +793,78 @@ test('API Routes [Fixes #94]: strictly validates filePath and remotePath inputs 
   const envSaveRes2 = createMockRes();
   await envSaveHandler(envSaveReq2, envSaveRes2);
   assert.equal(envSaveRes2.getStatusCode(), 400);
+});
+
+test('Routes Helpers [Fixes #100]: isTrustedSettingsRequest applies explicit loopback and same-origin predicates', () => {
+  // 1. Rejects external IP without token
+  const extReq = {
+    headers: { 'sec-fetch-site': 'same-origin' },
+    socket: { remoteAddress: '192.168.1.100' }
+  };
+  assert.equal(isTrustedSettingsRequest(extReq), false, 'External IP without token must be rejected');
+
+  // 2. Accepts external IP with matching Bearer token
+  const authExtReq = {
+    headers: {
+      'sec-fetch-site': 'same-origin',
+      authorization: 'Bearer secret-123'
+    },
+    socket: { remoteAddress: '192.168.1.100' }
+  };
+  assert.equal(isTrustedSettingsRequest(authExtReq, 'secret-123'), true);
+
+  // 3. Rejects cross-site header even on loopback
+  const crossSiteReq = {
+    headers: { 'sec-fetch-site': 'cross-site' },
+    socket: { remoteAddress: '127.0.0.1' }
+  };
+  assert.equal(isTrustedSettingsRequest(crossSiteReq), false);
+
+  // 4. Rejects mismatched origin on loopback (CSRF)
+  const badOriginReq = {
+    headers: {
+      origin: 'http://malicious.site',
+      host: '127.0.0.1:3000'
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  };
+  assert.equal(isTrustedSettingsRequest(badOriginReq), false);
+
+  // 5. Accepts loopback caller (direct CLI/curl)
+  const loopbackReq = {
+    headers: {},
+    socket: { remoteAddress: '127.0.0.1' }
+  };
+  assert.equal(isTrustedSettingsRequest(loopbackReq), true);
+
+  // 6. Accepts mock request with same-origin header and no remote socket
+  const mockSameOrigin = {
+    headers: { 'sec-fetch-site': 'same-origin' }
+  };
+  assert.equal(isTrustedSettingsRequest(mockSameOrigin), true);
+
+  // 7. Rejects untrusted caller with no socket and no same-origin
+  const untrustedReq = {
+    headers: {}
+  };
+  assert.equal(isTrustedSettingsRequest(untrustedReq), false);
+});
+
+test('API Routes [Fixes #101]: POST /dsh-remote-workspace/test reports connection failure as HTTP 502', async () => {
+  const { registered, mockSsh } = setupTestRoutes();
+  const handler = registered.get('/dsh-remote-workspace/test');
+
+  // Configure mockSsh.testConnection to fail
+  mockSsh.testConnection = async () => {
+    throw new Error('Connection refused: 10.0.0.1:22');
+  };
+
+  const req = createMockReq('POST', '/dsh-remote-workspace/test', { host: '10.0.0.1' });
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.getStatusCode(), 502, 'Connection failure must return HTTP 502 Bad Gateway');
+  const body = res.getBody();
+  assert.equal(body.ok, false);
+  assert.match(body.error, /Connection refused/);
 });

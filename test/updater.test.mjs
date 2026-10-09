@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isNewerVersion, isTrustedUpdateRequest } from "../lib/updater-service.js";
+import { isNewerVersion, isTrustedUpdateRequest, buildInstallArgs } from "../lib/updater-service.js";
 
 test("Updater: isNewerVersion correctly compares versions", () => {
   assert.equal(isNewerVersion("0.3.1", "0.3.2"), true);
@@ -53,4 +53,26 @@ test("Updater: isTrustedUpdateRequest rejects cross-origin and untrusted request
     socket: { remoteAddress: "10.1.2.3" }
   };
   assert.equal(isTrustedUpdateRequest(privateLanReq), false);
+});
+
+test("Updater [Fixes #106]: buildInstallArgs preserves pnpm minimumReleaseAge supply chain guard", () => {
+  const target = { cliEntry: "/usr/bin/dsh", profileName: "web" };
+  const args = buildInstallArgs(target, "@goodandready/dsh-remote-workspace@0.4.0", { registry: "https://registry.npmjs.org/" });
+
+  // Must NOT include --config.minimumReleaseAge=0
+  assert.equal(
+    args.includes("--config.minimumReleaseAge=0"),
+    false,
+    "Must not bypass pnpm supply-chain minimumReleaseAge guard"
+  );
+  assert.equal(
+    args.some((a) => a.includes("minimumReleaseAge")),
+    false,
+    "No minimumReleaseAge override flag should be passed"
+  );
+
+  // Must include standard plugin add arguments
+  assert.deepEqual(args.slice(0, 5), ["/usr/bin/dsh", "plugin", "--profile", "web", "add"]);
+  assert.equal(args[5], "@goodandready/dsh-remote-workspace@0.4.0");
+  assert.equal(args[6], "--registry=https://registry.npmjs.org/");
 });
