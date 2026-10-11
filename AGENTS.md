@@ -14,8 +14,8 @@
 - Слот настроек: `settings.plugin.item`, namespace `dsh-remote-workspace`.
 - Маршруты: `/dsh-remote-workspace/*`.
 - Локали продукта: `en` и `zh`. Русские строки интерфейса живут только в `dsh-russian-lang`.
-- Текущая версия в `package.json`: `0.3.8`
-- Статус проверен: 2026-09-24, релизный коммит `0.3.8`, `npm test` на этой ветке.
+- Текущая версия в `package.json`: `0.3.16`
+- Статус проверен: 2026-10-12, релизный коммит `0.3.16`, `npm test` на этой ветке.
 
 ## Commands
 
@@ -27,11 +27,12 @@
 
 - Публичный канал уже выбран: GitHub `GooDAnDReaDY/dsh-remote-workspace` и npm `@goodandready/dsh-remote-workspace`.
 - В npm `files` входят только `lib/`, `cordis.patch.yml`, README на трёх языках и `LICENSE`.
-- `AGENTS.md`, `index.md` и `docs/**` запрещены к публикации. `scripts/publish-github.sh` отбрасывает их до копирования.
+- `AGENTS.md`, `index.md`, `openwiki/**` и `docs/**` запрещены к публикации. `scripts/publish-github.sh` отбрасывает их до копирования.
 - Файл `deploy.sh` отсутствует: поставка — пакет DSH, отдельного OPT-каталога плагина нет. Не создавать пустой `deploy.sh`.
 
 ## Constraints
 
 - Разработка только в Git worktree внутри `.worktrees/`.
-- Git только через `/home/vadim/.ssh/bin/git-cursor`.
+- Git только через штатный wrapper агента (`/home/vadim/.ssh/bin/git-<agent>`).
+- Закрытие любой Gitea issue допускается только с обязательным закрывающим комментарием-отчётом («Проблема / Чем вызвана / Что сделано / Как проверено / Результат»). Запрещено закрывать issue без единого комментария.
 - Не публиковать служебные файлы и не поднимать вторую цифру версии без прямой просьбы владельца.

@@ -1,4 +1,4 @@
-import { isTrustedSettingsRequest } from '../lib/routes/helpers.js';
+import { isTrustedSettingsRequest, timingSafeCompare } from '../lib/routes/helpers.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerApiRoutes, readBody, MAX_BODY_BYTES } from '../lib/routes.js';
@@ -893,4 +893,38 @@ test('API Routes [Fixes #110]: authorizeRequest rejects cross-origin requests wi
     assert.equal(crossRes.getStatusCode(), 403, `${r.path} must return 403 Forbidden for cross-origin`);
     assert.equal(crossRes.getBody().error, 'Forbidden');
   }
+});
+
+test('Routes Helpers [Fixes #119]: timingSafeCompare performs constant-time comparison and rejects mismatched tokens', () => {
+  assert.equal(timingSafeCompare('secret-token-123', 'secret-token-123'), true);
+  assert.equal(timingSafeCompare('secret-token-123', 'secret-token-124'), false);
+  assert.equal(timingSafeCompare('secret-token-123', 'short'), false);
+  assert.equal(timingSafeCompare('secret-token-123', ''), false);
+  assert.equal(timingSafeCompare(null, 'secret-token-123'), false);
+  assert.equal(timingSafeCompare('secret-token-123', undefined), false);
+
+  // Verify Bearer and Cookie auth reject wrong tokens and prefix/length variations
+  const extReqWrongBearer = {
+    headers: { authorization: 'Bearer secret-token-124' },
+    socket: { remoteAddress: '192.168.1.99' }
+  };
+  assert.equal(isTrustedSettingsRequest(extReqWrongBearer, 'secret-token-123'), false);
+
+  const extReqShortBearer = {
+    headers: { authorization: 'Bearer sec' },
+    socket: { remoteAddress: '192.168.1.99' }
+  };
+  assert.equal(isTrustedSettingsRequest(extReqShortBearer, 'secret-token-123'), false);
+
+  const extReqWrongCookie = {
+    headers: { cookie: 'dsh_token=wrong-token' },
+    socket: { remoteAddress: '192.168.1.99' }
+  };
+  assert.equal(isTrustedSettingsRequest(extReqWrongCookie, 'secret-token-123'), false);
+
+  const extReqValidCookie = {
+    headers: { cookie: 'dsh_token=secret-token-123' },
+    socket: { remoteAddress: '192.168.1.99' }
+  };
+  assert.equal(isTrustedSettingsRequest(extReqValidCookie, 'secret-token-123'), true);
 });
