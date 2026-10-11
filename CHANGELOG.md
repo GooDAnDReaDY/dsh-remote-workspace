@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.16
+
+### Security & Hardening
+- **Strict environment file matching in `/env/save` (#119)**: Replaced loose substring check (`baseName.includes('env')`) with exact filename validation (`isEnvFileName`: `.env`, `.env.<suffix>`, or `*.env`), preventing arbitrary file writes to paths such as `/any/dir/env` or `environment.json`.
+- **Constant-time token comparison (#119)**: Introduced `timingSafeCompare` using `node:crypto.timingSafeEqual` for Bearer and Cookie token validation in `isTrustedSettingsRequest` (`lib/routes/helpers.js`).
+- **Absolute remoteWorkspace enforcement (#119)**: Required `remoteWorkspace` in `resolveWorkspacePath` (`lib/tools.js`) to be an explicit absolute POSIX path starting with `/`, eliminating cwd-dependent path resolution.
+- **SFTP realpath symlink-escape protection (#119)**: Added `RemoteFsService.realpath` and canonical path boundary verification (`verifyWorkspaceRealpath`) in `remote_fs` tool to block symlink targets (and symlinked parent directories on write/mkdir) that resolve outside the configured `remoteWorkspace`.
+
+
 ## 0.3.15
 
 ### Security & Hardening

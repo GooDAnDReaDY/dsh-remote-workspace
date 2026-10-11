@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerRemoteTools } from '../lib/tools.js';
+import { registerRemoteTools, resolveWorkspacePath } from '../lib/tools.js';
 
 function setupTools(activeProfile, options = {}) {
   const tools = new Map();
@@ -347,4 +347,53 @@ test('Tools [Fixes #105]: tool render returns [{ type: "text", text }] array per
   assert.ok(Array.isArray(hostsRendered));
   assert.equal(hostsRendered[0].type, 'text');
   assert.ok(hostsRendered[0].text.includes('| Host | IP |'));
+});
+
+test('Tools [Fixes #119]: remote_fs rejects relative remoteWorkspace and blocks symlink-escape via realpath', async () => {
+  // 1. Reject relative remoteWorkspace in resolveWorkspacePath
+  for (const relWs of ['relative/workspace', './workspace', '../workspace', 'workspace']) {
+    assert.throws(() => {
+      resolveWorkspacePath(relWs, 'file.txt');
+    }, /Remote workspace must be an absolute path/);
+  }
+
+  const relTools = setupTools({ id: 'p-rel', remoteWorkspace: 'relative/dir' });
+  const relFsTool = relTools.get('remote_fs');
+  await assert.rejects(async () => {
+    await relFsTool.execute({ action: 'read', path: 'app.js' });
+  }, /Remote workspace must be an absolute path/);
+
+  // 2. Block symlink-escape where lexical path is inside workspace but SFTP realpath resolves outside
+  const profile = { id: 'p-sym', remoteWorkspace: '/remote/dir' };
+  const tools = new Map();
+  const mockCtx = { tools: { register(def) { tools.set(def.name, def); } } };
+  const mockSsh = { exec: async () => ({ code: 0, stdout: '', stderr: '' }) };
+  const mockFs = {
+    realpath: async (_p, checkPath) => {
+      if (checkPath === '/remote/dir') return '/remote/dir';
+      if (checkPath === '/remote/dir/evil-link') return '/etc/shadow';
+      if (checkPath === '/remote/dir/EscapeDir') return '/root';
+      if (checkPath === '/remote/dir/safe-link') return '/remote/dir/subdir/config.json';
+      throw new Error('ENOENT');
+    },
+    readFile: async (_p, p) => `read:${p}`,
+    writeFile: async (_p, p, c) => ({ success: true, path: p, bytes: c.length })
+  };
+
+  registerRemoteTools(mockCtx, mockSsh, mockFs, {}, {}, () => profile, () => profile);
+  const fsTool = tools.get('remote_fs');
+
+  // Symlink pointing to /etc/shadow must be blocked on read
+  await assert.rejects(async () => {
+    await fsTool.execute({ action: 'read', path: 'evil-link' });
+  }, /escapes configured remoteWorkspace/);
+
+  // Non-existent file inside a symlinked parent directory pointing to /root must be blocked on write
+  await assert.rejects(async () => {
+    await fsTool.execute({ action: 'write', path: 'EscapeDir/authorized_keys', content: 'ssh-rsa ...' });
+  }, /escapes configured remoteWorkspace/);
+
+  // Legitimate symlink resolving within workspace succeeds
+  const safeRes = await fsTool.execute({ action: 'read', path: 'safe-link' });
+  assert.equal(safeRes.content, 'read:/remote/dir/subdir/config.json');
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerEnvRoutes } from '../lib/routes/env.js';
+import { registerEnvRoutes, isEnvFileName } from '../lib/routes/env.js';
 
 function createMockRes() {
   return {
@@ -154,4 +154,51 @@ test('Env Routes: /diagnose invokes diagnoseService.diagnose with profile as 1st
   assert.ok(diagCalled);
   assert.equal(res.statusCode, 200);
   assert.equal(JSON.parse(res.body).output, 'LISTEN 8080');
+});
+
+test('Env Routes [Fixes #119]: isEnvFileName and /env/save strictly match env files and reject non-env paths like /any/dir/env', async () => {
+  assert.equal(isEnvFileName('.env'), true);
+  assert.equal(isEnvFileName('.env.local'), true);
+  assert.equal(isEnvFileName('.env.production'), true);
+  assert.equal(isEnvFileName('app.env'), true);
+
+  // Negative cases: must reject bare "env" or unrelated filenames containing "env"
+  assert.equal(isEnvFileName('env'), false);
+  assert.equal(isEnvFileName('environment.json'), false);
+  assert.equal(isEnvFileName('my-env-config.yaml'), false);
+  assert.equal(isEnvFileName('env.bak'), false);
+  assert.equal(isEnvFileName(''), false);
+
+  const routes = new Map();
+  const mockProfile = { id: 'p1', host: '192.168.1.50', remoteWorkspace: '/workspace' };
+  let setVarCalled = false;
+
+  const mockEnvService = {
+    async setEnvVar() {
+      setVarCalled = true;
+      return { ok: true };
+    }
+  };
+  const mockStore = { getProfile: (id) => (id === 'p1' ? mockProfile : null) };
+  const mockServer = { register: (opts) => { routes.set(opts.path, opts.handler); } };
+  const sctx = {
+    effect: (fn) => fn(),
+    reflect: { get: () => ({ requestRejection: () => undefined }) }
+  };
+
+  registerEnvRoutes(sctx, mockServer, { envService: mockEnvService, store: mockStore });
+  const handler = routes.get('/dsh-remote-workspace/env/save');
+
+  for (const badPath of ['/any/dir/env', '/workspace/environment.json', '/etc/env/config.txt']) {
+    const req = createMockReq('POST', '/dsh-remote-workspace/env/save', {
+      profileId: 'p1',
+      remotePath: badPath,
+      key: 'FOO',
+      value: 'BAR'
+    });
+    const res = createMockRes();
+    await handler(req, res);
+    assert.equal(res.statusCode, 400, `Path ${badPath} must be rejected with HTTP 400`);
+    assert.equal(setVarCalled, false, 'setEnvVar must not be called for non-env target paths');
+  }
 });
