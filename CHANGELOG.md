@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.17
+
+### Fixed
+- **Idempotent slot registration & cleanup in `plugins.item` (#121)**: Wired disposers from `slots.inject` into `forms.whileServed([NS], ...)` and added an idempotency guard (`placed` flag) preventing duplicate registration of `plugins.item` with id `dsh-remote-workspace` on DSH 0.2.0-rc.2.
+
+
 ## 0.3.16
 
 ### Security & Hardening
