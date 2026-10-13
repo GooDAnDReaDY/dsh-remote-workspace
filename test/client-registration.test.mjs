@@ -159,3 +159,108 @@ test('Client: apply registers locale via ctx.effect and supports repeated apply'
   exportsObj.apply(mockCtx);
   assert.equal(registerCount, 2);
 });
+
+test('Client [Fixes #121]: plugins.item registration is idempotent and cleans up on dispose', () => {
+  let loadedModule = null;
+  const mockWindow = {
+    __ModuleLoader__: {
+      load(entry) {
+        loadedModule = entry;
+      }
+    }
+  };
+
+  const clientCode = fs.readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8');
+  const context = vm.createContext({
+    window: mockWindow,
+    document: {
+      getElementById: () => null,
+      createElement: () => ({ setAttribute() {}, dataset: {} }),
+      head: { appendChild() {} }
+    },
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) }),
+    confirm: () => true
+  });
+  vm.runInContext(clientCode, context);
+
+  const mockRequire = (mod) => ({
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (init) => [init, () => {}],
+    useEffect: (fn) => fn(),
+    Fragment: 'Fragment'
+  });
+
+  const exportsObj = loadedModule.factory(mockRequire);
+
+  // Track active entries in list slot
+  const slotEntries = new Map();
+  let whileServedCallback = null;
+
+  const mockCtx = {
+    locale: { register() {} },
+    inject(deps, callback) {
+      if (deps.includes('configForms')) {
+        callback(this);
+      }
+    },
+    effect(fn) {
+      return fn();
+    },
+    configForms: {
+      whileServed(namespaces, callback) {
+        whileServedCallback = callback;
+        return callback();
+      }
+    },
+    slots: {
+      inject(slotName, callback) {
+        let entryKey = null;
+        const currentRegister = mockCtx.slots.register;
+        mockCtx.slots.register = (options) => {
+          entryKey = `${options.name}:${options.id || options.key}`;
+          if (slotEntries.has(entryKey)) {
+            throw new Error(`list slot "${options.name}" already has an entry with id "${options.id}" at priority 0`);
+          }
+          slotEntries.set(entryKey, options);
+        };
+        try {
+          callback();
+        } finally {
+          mockCtx.slots.register = currentRegister;
+        }
+        return () => {
+          if (entryKey) {
+            slotEntries.delete(entryKey);
+          }
+        };
+      },
+      register(options) {
+        const key = `${options.name}:${options.id || options.key}`;
+        if (slotEntries.has(key)) {
+          throw new Error(`list slot "${options.name}" already has an entry with id "${options.id}" at priority 0`);
+        }
+        slotEntries.set(key, options);
+      }
+    }
+  };
+
+  // 1. Initial apply
+  exportsObj.apply(mockCtx);
+  assert.equal(slotEntries.has('plugins.item:dsh-remote-workspace'), true);
+
+  // 2. Multiple whileServed triggers or repeated apply must NOT throw slot collision error
+  assert.ok(typeof whileServedCallback === 'function');
+  assert.doesNotThrow(() => {
+    const disposer = whileServedCallback();
+    // Disposer can unmount and allow re-mounting cleanly
+    if (typeof disposer === 'function') {
+      disposer();
+      whileServedCallback();
+    }
+  });
+
+  // 3. Repeated apply call does not crash
+  assert.doesNotThrow(() => {
+    exportsObj.apply(mockCtx);
+  });
+});

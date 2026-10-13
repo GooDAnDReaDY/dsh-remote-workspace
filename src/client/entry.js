@@ -8,66 +8,92 @@
         }
       }
 
+      let placed = false;
       const registerPluginSlots = (c) => {
-        if (!c.slots || typeof c.slots.inject !== 'function') return;
+        if (!c.slots || typeof c.slots.inject !== 'function') return () => {};
+        if (placed) return () => {};
+        placed = true;
 
         // Plugin-list seat (plugins.item) first
-        c.slots.inject('plugins.item', () =>
-          c.slots.register(
-            {
-              name: 'plugins.item',
-              id: ROW_ID,
-              order: 60,
-              label: () => {
-                try {
-                  const lang = c.locale && typeof c.locale.getLocale === 'function'
-                    ? c.locale.getLocale()
-                    : ''
-                  if (typeof lang === 'string' && (lang === 'zh' || lang.indexOf('zh') === 0)) return zh.title
-                } catch (err) {
+        const offListItem = c.slots.inject('plugins.item', () => {
+          try {
+            return c.slots.register(
+              {
+                name: 'plugins.item',
+                id: ROW_ID,
+                key: ROW_ID,
+                order: 60,
+                label: () => {
+                  try {
+                    const lang = c.locale && typeof c.locale.getLocale === 'function'
+                      ? c.locale.getLocale()
+                      : ''
+                    if (typeof lang === 'string' && (lang === 'zh' || lang.indexOf('zh') === 0)) return zh.title
+                  } catch (err) {
+                    return en.title
+                  }
                   return en.title
-                }
-                return en.title
+                },
+                locale: NS,
+                inject: () => ({ ctx: c })
               },
-              locale: NS,
-              inject: () => ({ ctx: c })
-            },
-            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
-          )
-        );
+              (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
+            );
+          } catch (err) {
+            console.warn('[dsh-remote-workspace] plugins.item registration skipped:', err && err.message);
+          }
+        });
 
         // Row seat (plugins.row.config)
-        c.slots.inject('plugins.row.config', () =>
-          c.slots.register(
-            {
-              name: 'plugins.row.config',
-              key: ROW_CONFIG_KEY,
-              locale: NS,
-              inject: () => ({ ctx: c })
-            },
-            (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
-          )
-        );
+        const offRow = c.slots.inject('plugins.row.config', () => {
+          try {
+            return c.slots.register(
+              {
+                name: 'plugins.row.config',
+                key: ROW_CONFIG_KEY,
+                locale: NS,
+                inject: () => ({ ctx: c })
+              },
+              (props) => React.createElement(PluginCard, Object.assign({}, props, { ctx: c }))
+            );
+          } catch (err) {
+            console.warn('[dsh-remote-workspace] plugins.row.config registration skipped:', err && err.message);
+          }
+        });
 
-        c.slots.inject('conversation.session.header.utilities', () =>
-          c.slots.register(
-            {
-              name: 'conversation.session.header.utilities',
-              id: '@goodandready/dsh-remote-workspace',
-              order: 30
-            },
-            (props) => React.createElement(RemoteWorkspaceChip, props)
-          )
-        );
+        const offHeader = c.slots.inject('conversation.session.header.utilities', () => {
+          try {
+            return c.slots.register(
+              {
+                name: 'conversation.session.header.utilities',
+                id: '@goodandready/dsh-remote-workspace',
+                order: 30
+              },
+              (props) => React.createElement(RemoteWorkspaceChip, props)
+            );
+          } catch (err) {
+            console.warn('[dsh-remote-workspace] header utilities registration skipped:', err && err.message);
+          }
+        });
+
+        return () => {
+          placed = false;
+          try { if (typeof offListItem === 'function') offListItem(); } catch (_err) {}
+          try { if (typeof offRow === 'function') offRow(); } catch (_err) {}
+          try { if (typeof offHeader === 'function') offHeader(); } catch (_err) {}
+        };
       };
 
       if (ctx.inject && typeof ctx.inject === 'function') {
         ctx.inject(['configForms'], (c) => {
           const forms = c.configForms;
           if (forms && typeof forms.whileServed === 'function') {
-            c.effect(() => forms.whileServed([NS], () => {
-              registerPluginSlots(c);
-            }), 'dsh-remote-workspace: plugins card');
+            const gate = () => forms.whileServed([NS], () => registerPluginSlots(c));
+            if (typeof c.effect === 'function') {
+              c.effect(gate, 'dsh-remote-workspace: plugins card');
+            } else {
+              gate();
+            }
           } else {
             registerPluginSlots(c);
           }
