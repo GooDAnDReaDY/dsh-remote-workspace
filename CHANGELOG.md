@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.19
+
+### Added
+- **`remote_workspace_patch_file` LLM tool (#126)**: Search/replace and unified diff file patching directly inside remote workspace with strict uniqueness verification, automated `.bak` backups, and workspace boundary confinement.
+- **REST route `/dsh-remote-workspace/file/patch` (#126)**: Web endpoint for atomic remote file patching with automated backup creation.
+- **Remote port forwarding & HTTP proxy endpoints (#127)**: Dynamic local port allocation (`TunnelService.allocateFreePort`), `POST /dsh-remote-workspace/tunnels/open`, `POST /dsh-remote-workspace/tunnels/close`, `GET /dsh-remote-workspace/tunnels`, and reverse HTTP proxy `/dsh-remote-workspace/tunnel/:tunnelId`.
+- **`remote_workspace_tunnel` LLM tool (#127)**: Tool for autonomous agents to open, close, and list port forwarding tunnels to remote services.
+- **Web preview button in Tunnels UI (#127)**: Direct `🌐 Open` link for active local tunnels in settings panel.
+
 ## 0.3.18
 
 ### Added
