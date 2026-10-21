@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.20
+
+### Added
+- **Persistent terminal sessions with tmux auto-attach (#128)**: Named tmux session wrapping (`dsh-<profileId>-<sessionName>`) with seamless login shell fallback when tmux is not installed, surviving browser disconnects and page refreshes.
+- **Terminal session management endpoints (#128)**: `GET /dsh-remote-workspace/terminal/sessions` to list active and persistent tmux sessions, and `POST /dsh-remote-workspace/terminal/kill` to terminate persistent sessions.
+- **Terminal UI sessions selector (#128)**: Added tmux auto-attach toggle, persistent sessions list with direct `Attach` and `Kill` actions in terminal window header.
+- **Remote Git status overlay & branch indicator (#129)**: Real-time git status probing (`GitService.getStatus`), displaying current branch (`🌿 branch`) and modified/untracked count badges in the file browser header.
+- **Git status file badges (#129)**: Colored file badges (`M` modified, `?` untracked, `A` added, `D` deleted, `R` renamed) in remote file tree.
+- **`remote_workspace_git_status` LLM tool & REST API (#129)**: Tool and endpoints `GET/POST /dsh-remote-workspace/git/status` providing structured repository inspection for autonomous agents.
+
 ## 0.3.19
 
 ### Added
