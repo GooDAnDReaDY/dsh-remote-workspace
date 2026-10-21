@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.23
+
+### Added
+- **Multi-workspace split view and dual-pane explorer (#134)**: Dual-pane split view toggle (`⚏ Split View` / `⚏ Single View`) in `src/client/file-browser.js`, allowing developers to browse, navigate, and edit files across two remote profiles simultaneously.
+- **One-click cross-profile file transfer (#134)**: Integrated file transfer between Pane A and Pane B (`➔ Copy` / ` Copy`) utilizing `POST /dsh-remote-workspace/transfer` with automated directory refresh and toast notifications.
+- **Side-by-side file & configuration diff viewer (#134)**: Built-in split diff modal with line numbers, color-coded line additions/removals/modifications, and summary metrics for inspecting configuration drift between environments (e.g. staging vs prod `.env`).
+- **Remote Docker socket forwarding & proxy (#135)**: Native stream forwarding for remote `/var/run/docker.sock` over SSH in `DockerService` (`lib/docker-service.js`), exposing both a local TCP endpoint (`http://127.0.0.1:<port>`) and local Unix domain socket (`/tmp/dsh-docker-<profileId>.sock`).
+- **Cross-plugin synergy with `@goodandready/dsh-docker-dashboard` (#135)**: Service method `getActiveDockerEndpoint()` and Cordis `remoteDocker` service registration enabling `dsh-docker-dashboard` and local Docker CLI tools to seamlessly inspect and manage containers on remote hosts.
+- **Docker socket REST API & LLM tool (#135)**: Endpoints `GET /docker/socket-status`, `POST /docker/forward-socket`, `POST /docker/stop-socket`, `GET /docker/socket-forwards`, and autonomous LLM tool `remote_docker_socket` (check, forward, stop, status).
+- **Docker socket bridge controls in UI (#135)**: Interactive socket forwarding card in the Docker tab with live status, TCP endpoint URL, and one-click toggle.
+
 ## 0.3.22
 
 ### Added
