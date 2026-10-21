@@ -159,6 +159,8 @@ test('Tools [Issue #33]: remote tools compile valid object-root JSON Schema', ()
 
   const expectedTools = [
     'remote_exec',
+    'remote_workspace_exec',
+    'remote_workspace_search',
     'remote_fs',
     'remote_sync',
     'remote_tunnel',
@@ -171,7 +173,7 @@ test('Tools [Issue #33]: remote tools compile valid object-root JSON Schema', ()
     'remote_cluster'
   ];
 
-  assert.equal(tools.size, 11, 'All 11 remote tools must be registered');
+  assert.equal(tools.size, 13, 'All 13 remote tools must be registered');
 
   for (const name of expectedTools) {
     const tool = tools.get(name);
