@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.22
+
+### Added
+- **In-memory LRU directory cache with TTL and hit/miss metrics (#132)**: Configurable 60-second TTL in `RemoteFsService` with max 500 entries, LRU eviction, hits/misses tracking (`getCacheStats()`), and manual flush endpoint `POST /dsh-remote-workspace/cache/clear`.
+- **Immediate fileWatcher & filesystem operation cache invalidation (#132)**: Automated directory cache purging on file saves, uploads, patches, removals, and directory creation, as well as on `WatcherService` auto-sync events.
+- **Conditional ETag & If-None-Match support (#132)**: Added `ETag` generation and HTTP 304 Not Modified responses to `/dsh-remote-workspace/file/view` and `/file/download` to eliminate redundant transfers over high-latency SSH connections.
+- **Remote environment bootstrap service & init scripts (#133)**: `BootstrapService` (`lib/bootstrap-service.js`) with pre-built templates for Node.js/TypeScript, Python/FastAPI, and Docker CE.
+- **`remote_workspace_bootstrap` LLM tool & REST endpoints (#133)**: REST routes `GET /bootstrap/templates`, `POST /bootstrap/run` and autonomous agent tool `remote_workspace_bootstrap` (total 17 tools).
+- **Bootstrap script editor & runner in Profiles UI (#133)**: Added bootstrap script editor with template selector and `🚀 Bootstrap` action with output console in profiles panel.
+
 ## 0.3.21
 
 ### Added
