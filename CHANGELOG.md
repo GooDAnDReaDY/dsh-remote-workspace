@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.21
+
+### Added
+- **AES-256-GCM encrypted SSH credential storage (#130)**: Encrypted on-disk credential storage in `VaultService` using AES-256-GCM (`enc:v1:<base64>`) with hardware/machine entropy or master key, decrypting strictly in-memory during SSH handshakes and preserving backward compatibility for legacy plain `.env` files.
+- **Root privilege elevation via sudo helper (#131)**: Non-interactive `sudo -n` elevation in `RemoteFsService` (`sudo cat` for reading protected files, `sudo tee` with piped stdin for atomic writing), with automatic fallback upon `Permission denied` errors.
+- **Sudo elevation parameter in `remote_fs` tool (#131)**: Added `sudo: boolean` parameter to `remote_fs` LLM tool allowing autonomous agents to read and modify root-protected system configuration files (e.g. `/etc/nginx/nginx.conf`, `/etc/hosts`).
+- **Sudo elevation controls in File Browser UI (#131)**: Added `⚡ Sudo` root elevation checkbox and permission-denied retry handling in file preview and editing modal.
+
 ## 0.3.20
 
 ### Added
