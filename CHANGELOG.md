@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.18
+
+### Added
+- **`remote_workspace_exec` LLM tool (#124)**: Execute shell commands inside the active remote workspace with configurable timeout (default 30s) and buffer capping (64 KB default) with execution time tracking.
+- **`remote_workspace_search` LLM tool & Codebase search UI (#125)**: Server-side text and regex search using `ripgrep` (fallback to `grep`) across the remote codebase, automatically excluding heavy directories (`node_modules`, `.git`, `dist`, `build`, `vendor`, `__pycache__`).
+- **REST routes `/dsh-remote-workspace/exec` and `/dsh-remote-workspace/search`**: Secure API endpoints for shell execution and code search with path confinement and origin authentication.
+
+
 ## 0.3.17
 
 ### Fixed

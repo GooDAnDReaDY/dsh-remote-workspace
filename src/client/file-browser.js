@@ -10,6 +10,40 @@
       const [saveStatus, setSaveStatus] = React.useState(null)
       const [transfer, setTransfer] = React.useState(null)
       const transferAbort = React.useRef(null)
+      const [showSearch, setShowSearch] = React.useState(false)
+      const [searchQuery, setSearchQuery] = React.useState('')
+      const [searchResults, setSearchResults] = React.useState([])
+      const [searchLoading, setSearchLoading] = React.useState(false)
+      const [searchError, setSearchError] = React.useState(null)
+
+      const handleSearch = async () => {
+        if (!activeProfile || !searchQuery.trim()) return
+        setSearchLoading(true)
+        setSearchError(null)
+        try {
+          const res = await fetch('/dsh-remote-workspace/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profileId: activeProfile.id,
+              query: searchQuery.trim(),
+              path: activeProfile.remoteWorkspace || currentPath,
+              maxResults: 50
+            })
+          })
+          const data = await res.json()
+          if (data.ok && Array.isArray(data.matches)) {
+            setSearchResults(data.matches)
+          } else {
+            setSearchError(data.error || 'Search failed')
+            setSearchResults([])
+          }
+        } catch (err) {
+          setSearchError(err.message)
+          setSearchResults([])
+        }
+        setSearchLoading(false)
+      }
 
       const loadDir = async (dirPath) => {
         if (!activeProfile) return
@@ -165,17 +199,78 @@
           { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
           React.createElement('div', { style: { fontWeight: 600, fontSize: '14px' } }, t('explorerTitle')),
           React.createElement(
-            'button',
-            {
-              type: 'button',
-              className: 'drw-btn',
-              onClick: () => loadDir(currentPath),
-              disabled: loading
-            },
-            loading ? 'Refreshing...' : '🔄 Refresh'
-          ),
-          React.createElement('button', { type: 'button', className: 'drw-btn', onClick: uploadFile }, t('btnUpload'))
+            'div',
+            { style: { display: 'flex', gap: '8px' } },
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                className: 'drw-btn',
+                onClick: () => setShowSearch(!showSearch)
+              },
+              showSearch ? '✕ Close' : '🔍 Search'
+            ),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                className: 'drw-btn',
+                onClick: () => loadDir(currentPath),
+                disabled: loading
+              },
+              loading ? 'Refreshing...' : '🔄 Refresh'
+            ),
+            React.createElement('button', { type: 'button', className: 'drw-btn', onClick: uploadFile }, t('btnUpload'))
+          )
         ),
+        showSearch
+          ? React.createElement(
+              'div',
+              { style: { padding: '8px', background: 'var(--dsw-alias-surface-sunken)', borderRadius: '6px', marginBottom: '8px' } },
+              React.createElement(
+                'div',
+                { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+                React.createElement('input', {
+                  type: 'text',
+                  className: 'drw-input',
+                  style: { flex: 1 },
+                  placeholder: 'Search files and code...',
+                  value: searchQuery,
+                  onChange: (e) => setSearchQuery(e.target.value),
+                  onKeyDown: (e) => { if (e.key === 'Enter') handleSearch(); }
+                }),
+                React.createElement(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'drw-btn drw-btn-primary',
+                    onClick: handleSearch,
+                    disabled: searchLoading || !searchQuery.trim()
+                  },
+                  searchLoading ? 'Searching...' : 'Search'
+                )
+              ),
+              searchError ? React.createElement('div', { style: { color: 'var(--dsw-alias-state-error-primary, #ef4444)', marginTop: '4px', fontSize: '12px' } }, searchError) : null,
+              searchResults.length > 0
+                ? React.createElement(
+                    'div',
+                    { style: { maxHeight: '180px', overflowY: 'auto', marginTop: '8px' } },
+                    searchResults.map((m, idx) =>
+                      React.createElement(
+                        'div',
+                        {
+                          key: `${m.file}-${m.line}-${idx}`,
+                          style: { padding: '4px 8px', fontSize: '12px', borderBottom: '1px solid var(--dsw-alias-border-subtle)', cursor: 'pointer' },
+                          onClick: () => openFile({ filename: m.file })
+                        },
+                        React.createElement('span', { style: { fontWeight: 600, color: 'var(--dsw-alias-brand-primary)' } }, `${m.file}:${m.line}`),
+                        React.createElement('span', { style: { marginLeft: '8px', opacity: 0.85, fontFamily: 'monospace' } }, m.text)
+                      )
+                    )
+                  )
+                : null
+            )
+          : null,
         transfer
           ? React.createElement('div', { className: 'drw-hint', role: 'status' },
               transfer.error ? t('transferFailed', { name: transfer.name }) : t('transferProgress', { name: transfer.name, percent: transfer.percent || 0 }),
