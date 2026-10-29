@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.24
+
+### Security & Hardening
+- **Reject arbitrary profile objects in `/browse` (#123)**: Replaced caller-supplied raw `profile` acceptance with strict lookup in `store.getProfile(profileId)` and active profile fallback, preventing arbitrary host connections, credential spoofing, and malicious `proxyCommand` command injection via `$SHELL -c`.
+- **Remote workspace realpath boundary enforcement (#123)**: Restricted file operations (`/browse`, `/file/view`, `/file/save`, `/file/mkdir`, `/file/remove`, `/file/download`, `/file/upload`, `/file/transfer`, `/file/patch`) strictly within `remoteWorkspace` boundary with realpath symlink resolution to prevent directory traversal and symlink escapes, with explicit `sudo` bypass only for authorized administrative operations.
+- **Settings synchronization & revision race protection (#123)**: Implemented `loader/volatile-update` listener in `lib/index.js` to reconcile memory store with external profile mutations, and passed expected snapshot revision to `settingsApi.replace()` to prevent race conditions during concurrent configuration writes.
+- **Robust scoped package update URL resolution (#123)**: Added support for both `@scope%2Fpkg/latest` and `%40scope%2Fpkg/latest` candidate paths in `lib/updater-service.js` ensuring reliable npm registry checks for scoped packages.
+
 ## 0.3.23
 
 ### Added
