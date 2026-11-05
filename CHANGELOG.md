@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.25
+
+### Added
+- **Chat session header connection indicator visibility toggle (#144)**: Added the `showHeaderIndicator` setting (enabled by default) to control the display of the active SSH status chip in the conversation session header (`conversation.session.header.utilities`).
+- **Zero-restart reactive toggle application (#144)**: Instant UI toggle responsiveness across Web and Desktop without page reload or restart via local event dispatch and `localStorage` state synchronization.
+- **REST endpoint `POST /dsh-remote-workspace/settings/header-indicator` (#144)**: Protected settings mutation route for toggling indicator visibility with boolean input validation and CSRF protection.
+- **Persistent configuration across restarts (#144)**: Preserved `showHeaderIndicator` across restarts via Cordis `settingsApi.replace()` and snapshot reconciliation.
+- **Preserved core workspace access & navigation (#144)**: Ensured the primary sidebar Remote button (`[data-drw-entry]`), active SSH connections, web terminals, file explorer, and port forwarding tunnels remain fully functional and accessible regardless of chip visibility.
+
 ## 0.3.24
 
 ### Security & Hardening
