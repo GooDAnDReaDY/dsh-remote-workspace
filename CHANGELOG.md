@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.26
+
+### Fixed
+- **Configurable and persistent header indicator visibility across restarts (#147)**: Fixed an issue where the `showHeaderIndicator` toggle setting was not retained across DSH Desktop and Web restarts.
+- **DSH configForms & settings synchronization (#147)**: Wired `RemoteWorkspaceChip` and `SettingsView` to DSH `configForms` API with `localStorage` zero-flash cache to guarantee immediate and persistent UI state reconciliation.
+- **Backend settings subscription (#147)**: Added `ctx.settings.subscribe` and `ctx.settings.update` handling in backend configuration persistence, ensuring configuration changes survive application lifecycle events.
+- **Programmatic store resolution (#147)**: Enabled `apply(ctx, config)` to return the instantiated workspace store for robust unit and integration testing.
+
 ## 0.3.25
 
 ### Added
