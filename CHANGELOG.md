@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.27
+
+### Fixed
+- **Pack artifact sanitation & checkout enforcement (#149)**: Added `scripts/pack-check.mjs` enforcing that release tarballs are packaged outside checkout (`--pack-destination /tmp`) and verifying the 256 KiB file size ceiling.
+- **Theme color tokens & zero-color-literal compliance (#150)**: Replaced 15 hardcoded color literals with canonical CSS variables (`var(--dsw-alias-...)`) and `color-mix(...)`, guaranteeing visual fidelity in both light and dark modes.
+- **Canonical worktree cleanup (#151)**: Removed obsolete worktree and branch `fix/settings-contract` after ancestor verification against `origin/main`.
+- **Automated deploy script & observable error handling (#152)**: Added standard `deploy.sh` with profile automation, approvals checking, and healthcheck verification; replaced silent `.catch(() => {})` in `AlertService` with observable `ctx.logger.warn` error logging.
+
 ## 0.3.26
 
 ### Fixed
