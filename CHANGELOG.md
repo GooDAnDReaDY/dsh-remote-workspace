@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.28
+
+### Fixed
+- **Plugin HTTP health route availability & idle state compliance (#154)**: Fixed an issue where `GET /dsh-remote-workspace/health` returned HTTP 404 when no profile was configured or active; the endpoint now returns HTTP 200 with `{ ok: true, status: 'idle', activeProfile: null, health: null }` for clean integration with DSH and health monitoring tools.
+- **Dual route registration (#154)**: Registered `/api/dsh-remote-workspace/health` as a standard alias alongside `/dsh-remote-workspace/health`.
+- **Degraded host resilience (#154)**: Added graceful degraded status reporting (`status: 'degraded'`) when remote SSH host is unreachable, preventing unhandled 500 errors on health checks.
+- **Observable route registration diagnostics (#154)**: Added `store.getRouteStatus()` and `ctx.remoteRoutes` service for tracking web route registration state; logs diagnostic warning and records alert if `webServer` service is missing or lacks `register()`.
+- **Web profile composition tests (#154)**: Added comprehensive unit tests in `test/web-profile-composition.test.mjs` covering startup, restart lifecycle, idle state, active profile metrics, degraded host handling, and missing webServer diagnostics.
+
 ## 0.3.27
 
 ### Fixed
