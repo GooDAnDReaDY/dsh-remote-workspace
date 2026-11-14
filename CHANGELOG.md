@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.29
+
+### Added
+- **Sidebar navigation entry (#156)**: Relocated Remote Workspace launcher from the top standalone clone button in the `newSessionRow` to the main left sidebar navigation list (`sidebar.panellist` slot + DOM fallback).
+- **Responsive navigation styling & states (#156)**: Added full icon + title layout matching neighboring DSH items («Плагины», «Маркет плагинов», «Задачи автоматизации»), supporting expanded sidebar (full label), collapsed sidebar (icon rail), active state highlighting, zero hardcoded colors, and keyboard accessibility.
+
 ## 0.3.28
 
 ### Fixed
