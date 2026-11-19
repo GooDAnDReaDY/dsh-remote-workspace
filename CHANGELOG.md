@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.35
+
+### Changed
+- **Core split into domain modules (#173)**: `lib/ssh-service.js` (865 -> 578 lines) keeps the connection pool and delegates terminal lifecycle to `lib/terminal-session-manager.js`, keyboard-interactive prompts to `lib/keyboard-prompts.js`, host-key policy to `lib/host-key-gate.js` (the store and diagnostics map stay service-owned) and workspace search to `lib/ssh-search.js`. `lib/tools.js` (670 -> 67 lines) becomes the facade over `lib/tools/*` domain modules (exec, fs, tunnel, sync, docker, diagnose, env, git, hosts/cluster) with shared guard wrappers in `lib/tools/shared.js`. Behaviour preserved; preflight no longer reports any lib/ source over 600 lines.
+
 ## 0.3.34
 
 ### Fixed
