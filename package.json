@@ -1,6 +1,6 @@
 {
   "name": "@goodandready/dsh-remote-workspace",
-  "version": "0.3.29",
+  "version": "0.3.34",
   "description": "Enterprise Remote Workspace Plugin for DeepSeek Harness: SSH2 connection pool, SFTP operations, 3-way conflict-aware mirror sync, port forwarding, and native DSH UI.",
   "type": "module",
   "main": "lib/index.js",
@@ -73,10 +73,14 @@
     "@types/ssh2": "^1.15.4",
     "tsup": "^8.0.0",
     "typescript": "^5.5.0",
-    "@deepseek-ai/schemastery": "^3.18.4"
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "esbuild": "^0.27.7"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.3.34
+
+### Fixed
+- **Remote temp artifact hygiene (#170)**: `patchFile` accepts `backup` (default on) and reports `backupPath` only when a backup exists; upload and atomic-write temp names gain a random suffix so two operations in the same millisecond never collide; `beginUpload` sweeps stale `<file>.dsh-tmp.*` leftovers of the same file and unlinks its temp when the stream dies before commit; `_writeFileSftp` unlinks the temp on a failed write.
+
+### Changed
+- **Documentation drift removed (#171)**: README feature blocks 13 and 14 are back before License; `index.md` no longer hardcodes a version (canonical source: `package.json`); `docs/design/DESIGN.md` status reflects the current release; `engines.node >= 20` declared.
+
+## 0.3.33
+
+### Fixed
+- **ProxyCommand duplex crash on stop (#167)**: `openProxyCommand` now consumes leftover `AbortError`s on the duplex bridge instead of crashing the process with an unhandled `error` event when the child stops mid-write (the Windows `npm test` failure). The stop test spawns the node binary with a timer instead of POSIX `sleep`, drives the same socket-close path ssh2 uses, and accepts exit code or signal - valid on Linux, Windows and macOS. A CI runner matrix is registered as infrastructure follow-up.
+- **Updater double-install race (#169)**: `/dsh-remote-workspace/update` and `/api/dsh-remote-workspace/update` previously each kept their own `installing` flag, so two parallel POSTs could start two `dsh plugin add` runs. Both endpoints now share one module-level lock; the second request answers 409.
+
+### Changed
+- **Tool surface deduplication (#168)**: one exec implementation (`remote_workspace_exec`, canonical) with `remote_exec` as a deprecated alias keeping its 60s historical default; one tunnel implementation (`remote_workspace_tunnel`, canonical) with `remote_tunnel` as a deprecated alias mapping `start`/`stop`. `remote_cluster` and `remote_hosts` moved out of the `if (envService)` block - they never depended on the env service and silently disappeared when it was absent. README documents the canonical tool set.
+
+## 0.3.32
+
+### Fixed
+- **Mirror sync no longer drops deep files and dotfiles (#164)**: `MirrorSyncService.pull` removed the hard `find -maxdepth 5` and the blanket `*/.*` dotfile exclusion - ignore decisions belong to the shared defaultIgnore list, so `.env`, `.github`, `.dockerignore` and files deeper than five levels sync now. `options.maxDepth` is configurable (default unlimited). Empty remote directories are created locally; unreadable files are reported in `result.errors` and ignored entries in `result.skipped` instead of being silently skipped. The client surfaces the error count (new `syncErrors` locale key, en/zh). Tarball mode verified - it never had these limits.
+- **`DSH_AUTH_TOKEN` no longer rejects the legitimate UI (#165)**: `isTrustedSettingsRequest` used to fail same-origin browser sessions when an env token was configured but no Bearer/cookie was present. Presented credentials must still match the token; without credentials, same-origin and loopback callers pass and external callers still require the token. `connection.requestRejection` stays the authority.
+
+### Changed
+- **Client bundle minification with a size budget (#166)**: `scripts/build-client.mjs` runs the bundle through esbuild (deterministic, es2018). `lib/client.js` shrinks from 201 313 to ~119 402 bytes (76.8% -> 45.5% of the 262 144-byte Store limit). New size-budget test fails above 200 KiB and asserts the module-loader contract survives minification; esbuild pinned as a devDependency and the unminified bundle is a fallback. Intentional client catches now log via `console.debug` so the preflight empty-catch gate stays green after minification.
+
+## 0.3.31
+
+### Security
+- **`remote_transfer` enforces the workspace boundary (#161)**: the model tool validates `sourcePath` and `destPath` through the shared path-guard and verifies both realpaths, matching the HTTP `/transfer` route. Previously raw caller paths bypassed the boundary entirely. `transferFileBetweenHosts` now stats the source and rejects directories/special files explicitly.
+
+### Changed
+- **Single shared path-guard (#162)**: `lib/path-guard.js` is the one implementation of `isWithinWorkspace`, `resolveWorkspacePath`, `verifyWorkspaceRealpath` and `validateRemotePath`. Routes and tools import the same core with their explicit per-surface options (route: sudo elevation + hard failure on unresolvable workspace; tools: requireWorkspace + tolerant fallback for fresh workspaces). A parity test pins identical outcomes.
+
+### Fixed
+- **Profiles survive restarts on `settings.update` builds (#163)**: `persistConfig` now includes the schema-serialized `profiles` array in the `settings.update` payload. On DSH builds exposing `update()` without `register()`, saved profiles previously never reached storage. Legacy `settingsApi.replace` keeps its revision guard; the settings persistence contract is recorded in `docs/design/DESIGN.md`.
+
+## 0.3.30
+
+### Security
+- **SSH host key verification with TOFU (#158)**: ssh2 connections now verify the server host key (`lib/host-key-store.js` + `hostVerifier` in `lib/ssh-service.js`). Unknown keys are rejected by default with an actionable error and fingerprint; TOFU acceptance requires the explicit profile flag `acceptUnknownHostKey: true`; a changed key is always rejected (MITM suspicion). Trust can be seeded from `~/.ssh/known_hosts` or `profile.knownHostsFile` (plain, non-hashed entries). `testConnection` diagnostics report the verified fingerprint.
+- **Docker socket forward command injection (#159)**: `remoteSocketPath` is validated (absolute path, no control characters, sane length) and interpolated through the shared `shellQuote` in the fallback `nc`/`socat` bridge, closing command injection via `POST /docker/forward-socket` and the `remote_docker_socket` tool. `profileId` is sanitized before building the local socket path; hostile input answers HTTP 400.
+
+### Fixed
+- **ES-module `this` error paths (#160)**: the swallowed-error assignments (`this.lastOriginErr`, `this.lastConnErr`, `this.lastAuthConnErr`, `this.lastRejectionErr`, `this.lastRealpathErr`, `this.lastParentRealpathErr`, `this.lastStatErr`, `this.lastStreamDestroyErr`, `this.lastUploadAbortErr`) in `lib/routes/helpers.js` and `lib/routes/files.js` raised `TypeError` in strict mode and masked original failures (broken `Origin` returned 500 instead of 403; unresolvable workspace realpath broke `/browse`, `/file/view`, `/file/save`, `/file/upload`). Errors now land in a bounded module-level diagnostics map; `verifyWorkspaceRealpath` reports a clear HTTP 400 for an inaccessible workspace. Dead `this.last*` writes removed from client sources (`docker.js`, `file-browser.js`).
+
+### Changed
+- **Single shell-quote implementation (#172, audit fix)**: the four drifting copies (`remote-fs-service`, `tar-sync-service`, `docker-service`, `proxy-command`) now share `lib/shell-quote.js`; a parity test pins identical quoting for all consumers.
+
 ## 0.3.29
 
 ### Added

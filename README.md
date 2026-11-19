@@ -127,6 +127,7 @@ Four orthogonal, high-leverage tools exposed directly to LLM agents:
 - `remote_fs`: Read, write, inspect, list, create directories, or delete files on the remote filesystem.
 - `remote_sync`: Synchronize files between the local mirror and remote server with conflict awareness and dry-run mode.
 - `remote_tunnel`: Start, stop, or list SSH port-forwarding tunnels.
+- `remote_transfer`: Copy a regular file between two configured remote hosts over in-memory SFTP streams. Both `sourcePath` and `destPath` are constrained to the respective profile's `remoteWorkspace` (same guard as the HTTP `/transfer` route); directories and special files are rejected.
 - `remote_hosts`: Return a compact markdown table of configured hosts. Secrets, private keys, and proxy commands are omitted. `query` is required; an empty query lists every host.
 - `remote_cluster`: Run one command on every host that matches an environment, every requested tag, and an optional alias list. `maxWorkers` defaults to 8.
 
@@ -143,6 +144,27 @@ Four orthogonal, high-leverage tools exposed directly to LLM agents:
 - **Terminal font**: `terminalFontFamily` is a CSS font family for the terminal. Leave it empty for the default monospace stack.
 - **Hidden tab**: status polling pauses while the browser tab is hidden and refreshes when the tab returns.
 - **Sidebar workspace**: a Remote button in the left navigation opens the center column with Hosts, Terminal, Files, Containers, Tunnels, and Cluster. Switching back to chat hides that column and keeps the open terminal.
+
+---
+
+### 13. Smart Tarball Sync & Diagnostics (v0.3.1)
+- **`🚀 Fast Tarball Stream`**: High-throughput directory sync via on-the-fly streaming `tar -czf` bypassing per-file roundtrips.
+- **`🩺 Remote Diagnostics (remote_diagnose)`**: Instant one-shot checks for occupied ports (`ports`), OOM killer events (`oom_killer`), disk consumption (`disk`), and service crash-logs (`service_logs`).
+- **`📥 Import from ~/.ssh/config`**: One-click import of hosts, keys, and ProxyJump configurations directly into the encrypted `.env` vault.
+- **`🗃️ Remote Environment Manager (remote_env)`**: Inspect and atomically modify remote `.env` key-values with password masking and structural preservation.
+- **`📡 Background Anomaly Alerts`**: Proactive monitoring of disk (<10% free), memory (<5%), and restarting Docker containers via Cordis event bus (`remote-workspace/alert`).
+
+
+### 14. DSH 0.2.0-rc.1 Alignment & Reliability Hardening (v0.3.11)
+- **`⚙️ DSH 0.2.0-rc.1 Settings Forms`**: Fully volatile `Config` schema leaves and dynamic `whileServed` client registration matching the DSH 0.2.0-rc.1 settings contract (#76).
+- **`🛠️ Environment & Diagnostics Endpoints`**: Fixed service method bindings for `.env` inspection, atomic variable updating, and host diagnostics (#77).
+- **`⏱️ Terminal Session Reaper`**: Automatic background sweeping of idle and abandoned PTY sessions to prevent remote connection exhaustion (#78).
+- **`🛡️ Tunnel Lifecycle Hardening`**: Mutual socket/stream teardown on network disconnect and accurate telemetry counter tracking (#79).
+- **`📦 Tar Stream Resilience`**: Uncaught exception protection for local `tar` extraction and zombie process termination (#80).
+- **`🔒 Shell Command Sanitization`**: Strict numeric validation and POSIX single-quoted escaping across Docker, diagnostics, and remote filesystem operations (#81).
+- **`💾 Binary Stream Sync`**: Raw buffer hashing in `MirrorSyncService.pull` preventing false conflicts and hash corruption on binary files (#82).
+- **`👀 Watcher Error Recovery`**: Automatic `fs.watch` error recovery (`ENOSPC` handling) and per-profile concurrency locking (#83).
+- **`⚡ Tab Visibility Polling Gate`**: Client-side background poll suppression when browser tab is hidden (#84).
 
 ---
 
@@ -205,6 +227,8 @@ dsh-remote-workspace:
 | `profile.proxyCommand` | `string` | `""` | OpenSSH ProxyCommand. Tokens: `%h` `%p` `%r` `%n`. | 
 | `profile.jumpHosts` | `string[]` | `[]` | Bastion profile ids, first hop first. | 
 | `profile.jumpHostId` | `string` | `""` | Comma-separated bastion ids when `jumpHosts` is empty. | 
+| `profile.acceptUnknownHostKey` | `boolean` | `false` | Host key policy (#158): `false` (default) rejects a server whose key is not yet trusted; `true` enables TOFU — the first connection records the presented key fingerprint and trusts it afterwards. A changed key is always rejected. |
+| `profile.knownHostsFile` | `string` | `""` | Path to an OpenSSH `known_hosts` file to seed host-key trust from (plain, non-hashed entries). |
 | `profile.environment` | `string` | `""` | Group and cluster filter, compared case-insensitively. | 
 | `profile.tags` | `string[]` | `[]` | Labels. A cluster filter requires every tag. | 
 | `profile.location` | `string` | `""` | Free-form place label. | 
@@ -215,12 +239,18 @@ dsh-remote-workspace:
 
 ## 🔌 Model Tools Reference
 
-### `remote_exec`
-Executes a bash or shell command on the active remote host.
+Canonical tool set (#168): `remote_workspace_exec`, `remote_workspace_search`, `remote_fs`, `remote_workspace_patch_file`, `remote_sync`, `remote_workspace_tunnel`, `remote_workspace_git_status`, `remote_workspace_bootstrap`, `remote_docker`, `remote_docker_socket`, `remote_service`, `remote_transfer`, `remote_diagnose`, `remote_env`, `remote_hosts`, `remote_cluster`. The legacy names `remote_exec` and `remote_tunnel` remain registered as deprecated aliases of `remote_workspace_exec` and `remote_workspace_tunnel` and share their implementation.
+
+### `remote_workspace_exec` (canonical exec tool; `remote_exec` is a deprecated alias)
+Executes a bash or shell command on the active remote host with timeout, buffer capping and ANSI cleaning.
 - **Parameters**:
   - `command` (`string`, required): Shell command line to execute.
   - `cwd` (`string`, optional): Working directory on remote host. Defaults to `remoteWorkspace`.
-- **Returns**: `{ exitCode: number, stdout: string, stderr: string }`
+  - `timeout` (`number`, optional): Execution timeout in seconds (default 30s).
+  - `maxBufferSize` (`number`, optional): stdout/stderr truncation cap in bytes (default 65536).
+  - `pty` (`boolean`, optional): Allocate a pseudo-terminal for colored or interactive output.
+  - `cleanAnsi` (`boolean`, optional): Strip ANSI escape codes (default true).
+- **Returns**: `{ exitCode: number, stdout: string, stderr: string, executionTimeMs: number, signal }`
 
 ### `remote_fs`
 Performs filesystem operations over SFTP.
@@ -239,14 +269,15 @@ Runs 3-way conflict-aware synchronization between local and remote directories.
   - `dryRun` (`boolean`, optional): Simulate changes without writing to disk.
 - **Returns**: Sync summary object with applied actions, changed files, and any detected conflicts.
 
-### `remote_tunnel`
+### `remote_workspace_tunnel` (canonical tunnel tool; `remote_tunnel` is a deprecated alias)
 Manages SSH local port forwarding tunnels.
 - **Parameters**:
-  - `action` (`string`, required): `"start"`, `"stop"`, or `"list"`.
-  - `localPort` (`number`, optional): Local port to bind (for `"start"`).
-  - `remotePort` (`number`, optional): Remote destination port (for `"start"`).
-  - `tunnelId` (`string`, optional): Identifier of the tunnel to terminate (for `"stop"`).
-- **Returns**: `{ tunnelId, localPort, remotePort }` or `{ tunnels: [...] }` or `{ success: boolean }`.
+  - `action` (`string`, required): `"open"` (alias `"start"`), `"close"` (alias `"stop"`), or `"list"`.
+  - `remotePort` (`number`): Remote destination port (for `"open"`).
+  - `localPort` (`number`, optional): Local port to bind (for `"open"`, auto-allocated if omitted).
+  - `targetHost` (`string`, optional): Target host on the remote network (default `127.0.0.1`).
+  - `tunnelId` (`string`): Identifier of the tunnel to terminate (for `"close"`).
+- **Returns**: `{ tunnelId, localPort, remotePort }` or `{ ok: true, tunnels: [...] }` or `{ ok, tunnelId, success }`.
 
 ### `remote_hosts`
 Lists configured hosts for the model without secrets.
@@ -293,22 +324,3 @@ All endpoints are hosted under `/dsh-remote-workspace`:
 ## 📄 License
 
 MIT © [GooDAnDReaDY](https://github.com/GooDAnDReaDY)
-
-### 13. Smart Tarball Sync & Diagnostics (v0.3.1)
-- **`🚀 Fast Tarball Stream`**: High-throughput directory sync via on-the-fly streaming `tar -czf` bypassing per-file roundtrips.
-- **`🩺 Remote Diagnostics (remote_diagnose)`**: Instant one-shot checks for occupied ports (`ports`), OOM killer events (`oom_killer`), disk consumption (`disk`), and service crash-logs (`service_logs`).
-- **`📥 Import from ~/.ssh/config`**: One-click import of hosts, keys, and ProxyJump configurations directly into the encrypted `.env` vault.
-- **`🗃️ Remote Environment Manager (remote_env)`**: Inspect and atomically modify remote `.env` key-values with password masking and structural preservation.
-- **`📡 Background Anomaly Alerts`**: Proactive monitoring of disk (<10% free), memory (<5%), and restarting Docker containers via Cordis event bus (`remote-workspace/alert`).
-
-
-### 14. DSH 0.2.0-rc.1 Alignment & Reliability Hardening (v0.3.11)
-- **`⚙️ DSH 0.2.0-rc.1 Settings Forms`**: Fully volatile `Config` schema leaves and dynamic `whileServed` client registration matching the DSH 0.2.0-rc.1 settings contract (#76).
-- **`🛠️ Environment & Diagnostics Endpoints`**: Fixed service method bindings for `.env` inspection, atomic variable updating, and host diagnostics (#77).
-- **`⏱️ Terminal Session Reaper`**: Automatic background sweeping of idle and abandoned PTY sessions to prevent remote connection exhaustion (#78).
-- **`🛡️ Tunnel Lifecycle Hardening`**: Mutual socket/stream teardown on network disconnect and accurate telemetry counter tracking (#79).
-- **`📦 Tar Stream Resilience`**: Uncaught exception protection for local `tar` extraction and zombie process termination (#80).
-- **`🔒 Shell Command Sanitization`**: Strict numeric validation and POSIX single-quoted escaping across Docker, diagnostics, and remote filesystem operations (#81).
-- **`💾 Binary Stream Sync`**: Raw buffer hashing in `MirrorSyncService.pull` preventing false conflicts and hash corruption on binary files (#82).
-- **`👀 Watcher Error Recovery`**: Automatic `fs.watch` error recovery (`ENOSPC` handling) and per-profile concurrency locking (#83).
-- **`⚡ Tab Visibility Polling Gate`**: Client-side background poll suppression when browser tab is hidden (#84).
